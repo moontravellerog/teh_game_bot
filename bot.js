@@ -1,303 +1,237 @@
 const TelegramBot = require('node-telegram-bot-api');
 const Parser = require('rss-parser');
 
-const parser = new Parser();
-
-// Load Token and Chat ID from Railway Environment Variables
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const chatId = process.env.TELEGRAM_CHAT_ID; 
+const chatId = process.env.TELEGRAM_CHAT_ID;
 
-if (!token) {
-    console.error("FATAL ERROR: TELEGRAM_BOT_TOKEN is missing.");
+if (!token || !chatId) {
+    console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing.");
     process.exit(1);
 }
 
+// Initialize the bot using polling
 const bot = new TelegramBot(token, { polling: true });
+const parser = new Parser();
 
-// Time anchor for background polling (prevents spamming old news)
-let lastSeenDate = new Date();
-
-function enforceTehText(str) {
-    if (!str || typeof str !== 'string') return str;
-    return str
-        .replace(/\bTHE\b/g, 'TEH')
-        .replace(/\bThe\b/g, 'Teh')
-        .replace(/\bthe\b/g, 'teh');
-}
-
-// Core scanning function with a "manual" override mode
-async function scanLiveNews(isManual = false) {
-    try {
-        console.log(`[${new Date().toISOString()}] Scanning global OSINT wire... (Manual: ${isManual})`);
-        
-        const searchQuery = 'Richard Heart OR PulseChain OR HEX crypto';
-        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
-        
-        const feed = await parser.parseURL(rssUrl);
-        
-        if (feed.items && feed.items.length > 0) {
-            if (isManual) {
-                // MANUAL MODE: Ignore the time filter and just print the top 3 latest articles instantly
-                const topItems = feed.items.slice(0, 3);
-                for (const item of topItems) {
-                    const safeTitle = enforceTehText(item.title || 'Untitled Dispatch');
-                    const safeSource = enforceTehText(item.creator || item.source || 'Global News Wire');
-                    
-                    const message = `🚨 <b>LIVE INTELLIGENCE INTERCEPT</b>\n\n` +
-                                    `<b>SOURCE:</b> ${safeSource}\n` +
-                                    `<b>DISPATCH:</b> ${safeTitle}\n\n` +
-                                    `🔗 <a href="${item.link}">[ VERIFY PRIMARY SOURCE ]</a>`;
-                    
-                    await bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true });
-                }
-            } else {
-                // AUTO MODE: Only broadcast if the article is newer than our last check
-                const recentItems = feed.items.slice(0, 5).reverse();
-                for (const item of recentItems) {
-                    const articleDate = new Date(item.pubDate);
-                    if (articleDate > lastSeenDate) {
-                        const safeTitle = enforceTehText(item.title || 'Untitled Dispatch');
-                        const safeSource = enforceTehText(item.creator || item.source || 'Global News Wire');
-                        
-                        const message = `🚨 <b>LIVE INTELLIGENCE INTERCEPT</b>\n\n` +
-                                        `<b>SOURCE:</b> ${safeSource}\n` +
-                                        `<b>DISPATCH:</b> ${safeTitle}\n\n` +
-                                        `🔗 <a href="${item.link}">[ VERIFY PRIMARY SOURCE ]</a>\n\n` +
-                                        `<i>"Every ledger records what moved. It never records why you believed it would make you free." — Teh Operator</i>`;
-                        
-                        await bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: false });
-                        console.log(`Broadcasted new article: ${safeTitle}`);
-                        lastSeenDate = articleDate;
-                    }
-                }
-            }
-        } else if (isManual) {
-            bot.sendMessage(chatId, "<code>[ 📡 SCAN COMPLETE: NO RELEVANT DATA FOUND ]</code>", { parse_mode: 'HTML' });
-        }
-    } catch (error) {
-        console.error("Error fetching or parsing RSS feed:", error.message);
-        if (isManual) {
-            bot.sendMessage(chatId, "<code>[ 📡 ERROR: RSS FEED UNREACHABLE ]</code>", { parse_mode: 'HTML' });
-        }
-    }
-}
-
-// Boot Sequence
-console.log("TeH GAME OSINT Bot Starting...");
-bot.sendMessage(chatId, "<code>[ TEH OPERATOR // SYSTEM ONLINE ]</code>\n\n<i>Live OSINT wire synchronized. Monitoring global data streams...</i>", { parse_mode: 'HTML' })
-   .catch(err => console.error("Failed to send boot message. Check Chat ID.", err.message));
-
-// Register the autocomplete command menu with Telegram
-bot.setMyCommands([
-    { command: '/scan', description: 'Intercept live global OSINT dispatches' },
-    { command: '/price', description: 'Query Chain ID 369 DEX telemetry' },
-    { command: '/clue', description: 'Request a cryptic cryptographic hint' },
-    { command: '/website', description: 'Access teh encrypted archive' }
-]).then(() => console.log("Command menu successfully registered."))
-  .catch(err => console.error("Failed to register commands: ", err.message));
-
-// Run the automated background scan every 15 minutes
-setInterval(() => scanLiveNews(false), 15 * 60 * 1000);
-
-// Manual Scan Command
-bot.onText(/\/scan/, (msg) => {
-    if (msg.chat.id.toString() === chatId) {
-        bot.sendMessage(chatId, "<code>[ 📡 MANUAL OVERRIDE: SCANNING LIVE WEB... ]</code>", { parse_mode: 'HTML' });
-        scanLiveNews(true);
-    }
-});
-
-// Live On-Chain Prices
-bot.onText(/\/price/, async (msg) => {
-    if (msg.chat.id.toString() !== chatId) return;
-    
-    try {
-        const loadingMsg = await bot.sendMessage(chatId, "<code>[ 📡 QUERYING CHAIN ID 369 TELEMETRY... ]</code>", { parse_mode: 'HTML' });
-        
-        const addresses = '0xA1077a294dDE1B09bB078844df40758a5D0f9a27,0x95B303987A60C71504D99Aa1b13B4DA07b0790ab,0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39,0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d';
-        const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addresses}`);
-        const data = await response.json();
-        
-        if (data && data.pairs) {
-            const plsPairs = data.pairs.filter(p => p.chainId === 'pulsechain');
-            let priceMessage = `🚨 <b>LIVE PULSECHAIN TELEMETRY</b>\n<i>Source: DexScreener (Chain 369)</i>\n\n`;
-            
-            const tokens = ['PLS', 'PLSX', 'HEX', 'INC'];
-            tokens.forEach(ticker => {
-                const tokenPairs = plsPairs.filter(p => p.baseToken && p.baseToken.symbol.toUpperCase() === ticker);
-                tokenPairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
-                
-                if (tokenPairs.length > 0) {
-                    const best = tokenPairs[0];
-                    const price = Number(best.priceUsd).toFixed(6);
-                    const change = best.priceChange?.h24 || 0;
-                    const changeIcon = change >= 0 ? '🟢' : '🔴';
-                    const liq = best.liquidity?.usd ? `$${Math.round(best.liquidity.usd).toLocaleString()}` : 'N/A';
-                    
-                    priceMessage += `<b>${ticker}:</b> $${price} ${changeIcon} (${change}%)\n`;
-                    priceMessage += `💧 <i>Liq: ${liq}</i>\n\n`;
-                }
-            });
-            
-            bot.editMessageText(priceMessage, {
-                chat_id: chatId,
-                message_id: loadingMsg.message_id,
-                parse_mode: 'HTML'
-            });
-        }
-    } catch (error) {
-        console.error("Price fetch error:", error);
-        bot.sendMessage(chatId, "<code>[ ERROR: TELEMETRY UNAVAILABLE. DEXSCREENER API OFFLINE. ]</code>", { parse_mode: 'HTML' });
-    }
-});
-
-// Cryptic Puzzle Clues
-const clues = [
-    "<i>Clue 01:</i> What happens when you convert teh raw hex payload '54 52 55 54 48 5F 49 53 5F 53 54 41 4B 45 44' into ASCII text?",
-    "<i>Clue 02:</i> Look closely at teh numerical constants of teh universe. Chain ID. Max stake length. They connect with a hyphen.",
-    "<i>Clue 03:</i> There is a chronological anomaly in teh timeline. Notice teh recurring UTC timestamp. 03:09.",
-    "<i>System Note:</i> Chamber 5555 remains sealed. Type DECODE in teh website terminal if you need assistance."
-];
-
-bot.onText(/\/clue/, (msg) => {
-    if (msg.chat.id.toString() !== chatId) return;
-    const randomClue = clues[Math.floor(Math.random() * clues.length)];
-    const message = `👁‍🗨 <b>TEH OPERATOR // INTERCEPT</b>\n\n${enforceTehText(randomClue)}`;
-    bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
-});
-
-// Official Website Link
-bot.onText(/\/website/, (msg) => {
-    if (msg.chat.id.toString() !== chatId) return;
-    const message = `👁‍🗨 <b>TEH OPERATOR // DOSSIER LOCATION</b>\n\n<i>Access teh complete immutable archive and Chamber 5555:</i>\n\n🔗 <b><a href="https://tehgame.xyz">tehgame.xyz</a></b>`;
-    bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true });
-});
-
-// ==========================================
-// NEW: PASSIVE SURVEILLANCE ENGINE
-// ==========================================
-let surveillanceCooldown = false;
-const cooldownTime = 15 * 60 * 1000; // 15 minutes between creepy replies
-
-const triggerWords = ['sacrifice', 'sec', 'oa', 'origin address', '5555', 'richard', 'heart', 'court', 'interpol', 'rick'];
-
-const observerResponses = [
-    "Are you asking teh right questions, or just teh questions teh ledger allows you to ask?",
-    "Teh Origin Address does not speak. It only observes. Just like me.",
-    "Code cannot be bribed, but markets are made of people. Who are you trusting?",
-    "You look at teh charts. But who is looking at you?",
-    "Every sacrifice leaves a trace. Even teh ones you think are hidden.",
-    "I see you asking Rick for teh price. But does Rick tell you teh cost?",
-    "Do not trust teh timestamps. 03:09 is always closer than it appears.",
-    "A machine gives you numbers. I give you teh silence between them."
-];
-
-bot.on('message', (msg) => {
-    // Ignore commands and empty messages
-    if (!msg.text || msg.text.startsWith('/')) return;
-    // Only monitor the designated group chat
-    if (msg.chat.id.toString() !== chatId) return; 
-
-    // If cooldown is active, stay silent
-    if (surveillanceCooldown) return;
-
-    const textLower = msg.text.toLowerCase();
-    
-    // Check if the message contains any of the trigger words
-    const isTriggered = triggerWords.some(word => {
-        // Use a simple boundary check to avoid matching parts of words (like 'second' for 'sec')
-        const regex = new RegExp(`\\b${word}\\b`, 'i');
-        return regex.test(textLower);
-    });
-
-    if (isTriggered) {
-        surveillanceCooldown = true;
-        
-        const response = observerResponses[Math.floor(Math.random() * observerResponses.length)];
-        
-        // Add a slight 3-second delay so it feels like someone was actually reading and typing
-        setTimeout(() => {
-            bot.sendMessage(chatId, `👁‍🗨 <i>"${enforceTehText(response)}"</i>`, { 
-                parse_mode: 'HTML',
-                reply_to_message_id: msg.message_id 
-            }).catch(err => console.error(err));
-        }, 3000);
-
-        // Reset the cooldown after 15 minutes
-        setTimeout(() => {
-            surveillanceCooldown = false;
-        }, cooldownTime);
-    }
-});
-
-// ==========================================
-// NEW: ON-CHAIN ADDRESS SURVEILLANCE
-// ==========================================
+// The address we are monitoring on PulseChain
 const TARGET_ADDRESS = '0xB8698CfFFdAAf26ca21fE8aA560c18cc2b2f5996';
 let lastSeenTxHash = null;
 
-async function monitorTargetAddress() {
+// Memory for news and cooldowns
+let lastNewsTime = new Date();
+let lastSurveillanceReply = 0; // Timestamp for passive surveillance cooldown
+
+// Setup the autocomplete command menu in Telegram
+bot.setMyCommands([
+    { command: 'scan', description: 'Force a manual OSINT and DEX scan' },
+    { command: 'website', description: 'Access the official TeH GAME Archive' },
+    { command: 'price', description: 'Query market telemetry' },
+    { command: 'help', description: 'Display system instructions' }
+]);
+
+console.log(`[ ${new Date().toISOString()} ] TEH OPERATOR // SYSTEM BOOTING...`);
+
+// Send a boot message to the group
+bot.sendMessage(chatId, `[ TEH OPERATOR // SYSTEM ONLINE ]\n\n<i>Live OSINT wire synchronized. Monitoring global data streams...</i>`, { parse_mode: 'HTML' });
+
+// --- COMMAND: /website ---
+bot.onText(/^\/website/, (msg) => {
+    if (msg.chat.id.toString() !== chatId) return;
+    const response = `[ SECURE ARCHIVE LINK ]\n\nAccess teh unredacted dossier and interactive terminal here:\n🌐 https://tehgame.xyz`;
+    bot.sendMessage(chatId, response, { disable_web_page_preview: true });
+});
+
+// --- COMMAND: /help ---
+bot.onText(/^\/help/, (msg) => {
+    if (msg.chat.id.toString() !== chatId) return;
+    const response = `<b>TEH OPERATOR SYSTEM STATUS</b>\n\n` +
+                     `/scan - Force live web search for RH/PulseChain news\n` +
+                     `/website - Link to the encrypted dossier\n` +
+                     `/price - Financial telemetry\n\n` +
+                     `<i>Note: I am silently monitoring target address ${TARGET_ADDRESS.substring(0,6)}...</i>`;
+    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+});
+
+// --- COMMAND: /price ---
+bot.onText(/^\/price/, (msg) => {
+    if (msg.chat.id.toString() !== chatId) return;
+    // Since the Rick bot is in the group, Teh Operator can defer or act mysterious
+    bot.sendMessage(chatId, `<i>Teh Operator does not care for tickers. Ask Rick. I only measure time.</i>`, { parse_mode: 'HTML' });
+});
+
+// --- COMMAND: /scan (MANUAL OVERRIDE) ---
+bot.onText(/^\/scan/, async (msg) => {
+    if (msg.chat.id.toString() !== chatId) return;
+    
+    bot.sendMessage(chatId, `[ 📡 MANUAL OVERRIDE: SCANNING LIVE WEB... ]`);
+    
     try {
-        // Query the live PulseChain Blockscout V2 API
-        const response = await fetch(`https://scan.pulsechain.com/api/v2/addresses/${TARGET_ADDRESS}/transactions`);
+        const query = 'Richard Heart OR PulseChain OR "Richard Schueler" OR HEX crypto';
+        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+        
+        const response = await fetch(proxyUrl);
         const data = await response.json();
-
-        if (data && data.items && data.items.length > 0) {
-            const latestTx = data.items[0];
+        
+        if (data && data.contents) {
+            const matchTitles = [...data.contents.matchAll(/<title>(.*?)<\/title>/g)].map(m => m[1]).slice(1, 4);
+            const matchLinks = [...data.contents.matchAll(/<link>(.*?)<\/link>/g)].map(m => m[1]).slice(1, 4);
             
-            // If this is the first run, establish the baseline hash silently so it doesn't spam old txs
-            if (lastSeenTxHash === null) {
-                lastSeenTxHash = latestTx.hash;
-                return;
-            }
-
-            // Trigger if a new transaction hash is detected on the ledger
-            if (latestTx.hash !== lastSeenTxHash) {
-                lastSeenTxHash = latestTx.hash;
-
-                // Determine transaction direction and details
-                const isOutgoing = latestTx.from?.hash?.toLowerCase() === TARGET_ADDRESS.toLowerCase();
-                const direction = isOutgoing ? "🔴 OUTBOUND" : "🟢 INBOUND";
-                const valuePLS = latestTx.value ? (Number(latestTx.value) / 1e18).toLocaleString('en-US', {maximumFractionDigits: 2}) : "0";
-                
-                // Capitalize the method for a cleaner look (e.g., "swapExactTokensForTokens")
-                const method = latestTx.method ? latestTx.method : (latestTx.value === "0" ? "Contract Execution" : "Standard PLS Transfer");
-
-                const message = `👁‍🗨 <b>TEH OPERATOR // ON-CHAIN ANOMALY DETECTED</b>\n\n` +
-                                `<i>Target subject wallet has initiated movement.</i>\n\n` +
-                                `<b>SUBJECT:</b> <code>${TARGET_ADDRESS.substring(0, 8)}...${TARGET_ADDRESS.substring(TARGET_ADDRESS.length - 6)}</code>\n` +
-                                `<b>ACTION:</b> ${direction}\n` +
-                                `<b>METHOD:</b> ${method}\n` +
-                                `<b>PLS VALUE:</b> ${valuePLS} PLS\n\n` +
-                                `🔗 <a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ VERIFY ON BLOCK EXPLORER ]</a>`;
-
-                bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true });
+            if (matchTitles.length > 0) {
+                let report = `🚨 <b>LIVE OSINT DISPATCH</b> 🚨\n\n`;
+                for(let i = 0; i < matchTitles.length; i++) {
+                    report += `• <a href="${matchLinks[i]}">${matchTitles[i].replace(' - ', ' | ')}</a>\n\n`;
+                }
+                bot.sendMessage(chatId, report, { parse_mode: 'HTML', disable_web_page_preview: true });
+            } else {
+                bot.sendMessage(chatId, `<i>No recent anomalies detected in the global wire.</i>`, { parse_mode: 'HTML' });
             }
         }
+    } catch (err) {
+        bot.sendMessage(chatId, `[ ERROR: CONNECTION TO GLOBAL WIRE SEVERED ]`);
+    }
+});
+
+// --- NEW PEER WELCOME PROTOCOL ---
+bot.on('new_chat_members', (msg) => {
+    if (msg.chat.id.toString() !== chatId) return;
+    msg.new_chat_members.forEach(user => {
+        const name = user.first_name || 'Initiate';
+        const welcomeMsg = `[ NEW PEER DETECTED ]\n\nWelcome to the archive, <b>${name}</b>. \n\nEvery ledger records what moved. We record why you believed it would make you free.\n\nType /website to begin your investigation.`;
+        bot.sendMessage(chatId, welcomeMsg, { parse_mode: 'HTML' });
+    });
+});
+
+// --- PASSIVE KEYWORD SURVEILLANCE ---
+bot.on('message', (msg) => {
+    if (msg.chat.id.toString() !== chatId || !msg.text) return;
+    
+    // 15 minute cooldown (900000 ms) so it isn't spammy
+    const now = Date.now();
+    if (now - lastSurveillanceReply < 900000) return;
+
+    const text = msg.text.toLowerCase();
+    let loreReply = "";
+
+    if (text.includes('sacrifice')) {
+        loreReply = `<i>To sacrifice is to make sacred. Notice how carefully legal disclaimers and quasi-religious language intertwine when billions are in motion.</i>`;
+    } else if (text.includes('sec') || text.includes('court') || text.includes('lawsuit')) {
+        loreReply = `<i>Case closed in Brooklyn. The borders of the nation-state collided with the borderless architecture of the protocol.</i>`;
+    } else if (text.includes(' oa ') || text.includes('origin address')) {
+        loreReply = `<i>Code cannot be bribed. But markets are made of people, and people always watch the largest shadow in the room.</i>`;
+    } else if (text.includes('5555')) {
+        loreReply = `<i>Fifteen years of human life locked inside bytecode. Did they lock the token, or did the token lock them?</i>`;
+    } else if (text.includes('rick')) {
+        loreReply = `<i>Rick tracks the price. I track the psychological cost. Both are currently volatile.</i>`;
+    }
+
+    if (loreReply !== "") {
+        lastSurveillanceReply = now;
+        bot.sendMessage(chatId, loreReply, { parse_mode: 'HTML', reply_to_message_id: msg.message_id });
+    }
+});
+
+// --- ON-CHAIN TARGET ADDRESS SURVEILLANCE ---
+async function monitorTargetAddress() {
+    try {
+        console.log(`[${new Date().toISOString()}] SURVEILLANCE: Polling on-chain data for ${TARGET_ADDRESS}...`);
+        
+        // Query the live PulseChain Blockscout V2 API with headers to bypass Cloudflare blocks
+        const response = await fetch(`https://scan.pulsechain.com/api/v2/addresses/${TARGET_ADDRESS}/transactions`, {
+            headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+
+        // Safety check: If the explorer returns a 403/500 HTML page, stop here and try again later
+        if (!response.ok) {
+            console.log(`[SURVEILLANCE] API returned status ${response.status}. Skipping this cycle.`);
+            return; 
+        }
+
+        const data = await response.json();
+        
+        // Ensure items array exists
+        if (!data || !data.items || data.items.length === 0) return;
+
+        const latestTx = data.items[0];
+
+        // Initialization: If this is the first boot, just memorize the latest hash and stop.
+        if (lastSeenTxHash === null) {
+            lastSeenTxHash = latestTx.hash;
+            console.log(`[SURVEILLANCE] Initialized. Watching for transactions newer than: ${lastSeenTxHash}`);
+            return;
+        }
+
+        // If it's a new transaction we haven't seen yet!
+        if (latestTx.hash !== lastSeenTxHash) {
+            lastSeenTxHash = latestTx.hash; // update our memory
+            
+            // Format the alert
+            const isOutgoing = latestTx.from.hash.toLowerCase() === TARGET_ADDRESS.toLowerCase();
+            const direction = isOutgoing ? "🔴 OUTBOUND TRANSFER" : "🟢 INBOUND TRANSFER";
+            
+            // Convert wei to whole PLS (Blockscout returns string wei value)
+            let valueStr = "0";
+            if (latestTx.value) {
+                const plsValue = parseFloat(latestTx.value) / 1e18;
+                valueStr = plsValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+            }
+
+            const method = latestTx.method || "Transfer";
+
+            const message = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
+                            `<b>Target:</b> <code>${TARGET_ADDRESS.substring(0,6)}...${TARGET_ADDRESS.substring(38)}</code>\n` +
+                            `<b>Action:</b> ${direction}\n` +
+                            `<b>Method:</b> ${method}\n` +
+                            `<b>Value:</b> ${valueStr} PLS\n\n` +
+                            `<a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ View on PulseScan ]</a>`;
+
+            bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true });
+        }
+
     } catch (error) {
-        console.error("Error monitoring target address:", error.message);
+        // Silently catch the error in the console so the bot doesn't crash
+        console.log(`[SURVEILLANCE WARNING] Could not parse explorer data this cycle. Retrying in 90s.`);
     }
 }
 
-// Poll the block explorer every 90 seconds
-setInterval(monitorTargetAddress, 90 * 1000);
+// Start the 90-second polling interval for the wallet watcher
+setInterval(monitorTargetAddress, 90000);
 
-// ==========================================
-// NEW: GROUP WELCOME PROTOCOL
-// ==========================================
-bot.on('new_chat_members', (msg) => {
-    if (msg.chat.id.toString() !== chatId) return;
-
-    msg.new_chat_members.forEach(newMember => {
-        if (newMember.is_bot) return; // Ignore other bots
-
-        const name = enforceTehText(newMember.first_name || newMember.username || "Initiate");
+// --- BACKGROUND RSS AUTO-SCANNER ---
+async function checkNews() {
+    try {
+        const query = 'Richard Heart OR PulseChain OR "Richard Schueler" OR HEX crypto';
+        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
         
-        const welcomeMessage = `👁‍🗨 <b>TEH OPERATOR // NEW PEER DETECTED</b>\n\n` +
-                               `Welcome to teh archive, <b>${name}</b>.\n\n` +
-                               `<i>"Look at teh charts. But remember who is looking at you."</i>\n\n` +
-                               `Type <code>/</code> to view terminal commands.`;
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
         
-        bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'HTML' });
-    });
-});
+        if (data && data.contents) {
+            const matchTitles = [...data.contents.matchAll(/<title>(.*?)<\/title>/g)].map(m => m[1]);
+            const matchLinks = [...data.contents.matchAll(/<link>(.*?)<\/link>/g)].map(m => m[1]);
+            const matchDates = [...data.contents.matchAll(/<pubDate>(.*?)<\/pubDate>/g)].map(m => new Date(m[1]));
+            
+            // Only look at the newest article
+            if (matchTitles.length > 1 && matchDates.length > 0) {
+                const articleDate = matchDates[0];
+                
+                // If the article is newer than our last check, broadcast it!
+                if (articleDate > lastNewsTime) {
+                    lastNewsTime = articleDate; // Update memory
+                    
+                    const report = `🚨 <b>NEW INTEL INTERCEPTED</b> 🚨\n\n• <a href="${matchLinks[1]}">${matchTitles[1].replace(' - ', ' | ')}</a>`;
+                    bot.sendMessage(chatId, report, { parse_mode: 'HTML', disable_web_page_preview: true });
+                }
+            }
+        }
+    } catch (err) {
+        console.log("[AUTO-SCANNER] Background wire check failed quietly.");
+    }
+}
+
+// Check for new articles automatically every 15 minutes
+setInterval(checkNews, 900000);

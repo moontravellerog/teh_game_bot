@@ -13,7 +13,7 @@ if (!token || !chatId) {
 const bot = new TelegramBot(token, { polling: true });
 const parser = new Parser();
 
-// The address we are monitoring on PulseChain
+// The address we are monitoring on PulseChain (Personal Wallet)
 const TARGET_ADDRESS = '0xB8698CfFFdAAf26ca21fE8aA560c18cc2b2f5996';
 let lastSeenTxHash = null;
 
@@ -27,9 +27,13 @@ bot.setMyCommands([
     { command: 'website', description: 'Access the official TeH GAME Archive' },
     { command: 'price', description: 'Query market telemetry' },
     { command: 'help', description: 'Display system instructions' }
-]);
+]).then(() => {
+    console.log(`[${new Date().toISOString()}] Command menu successfully registered.`);
+}).catch(err => {
+    console.error("Failed to set commands:", err);
+});
 
-console.log(`[ ${new Date().toISOString()} ] TEH OPERATOR // SYSTEM BOOTING...`);
+console.log(`[${new Date().toISOString()}] TEH OPERATOR // SYSTEM BOOTING...`);
 
 // Send a boot message to the group
 bot.sendMessage(chatId, `[ TEH OPERATOR // SYSTEM ONLINE ]\n\n<i>Live OSINT wire synchronized. Monitoring global data streams...</i>`, { parse_mode: 'HTML' });
@@ -48,14 +52,14 @@ bot.onText(/^\/help/, (msg) => {
                      `/scan - Force live web search for RH/PulseChain news\n` +
                      `/website - Link to the encrypted dossier\n` +
                      `/price - Financial telemetry\n\n` +
-                     `<i>Note: I am silently monitoring target address ${TARGET_ADDRESS.substring(0,6)}...</i>`;
+                     `<i>Note: I am silently monitoring target wallet ${TARGET_ADDRESS.substring(0,6)}...</i>`;
     bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
 });
 
 // --- COMMAND: /price ---
 bot.onText(/^\/price/, (msg) => {
     if (msg.chat.id.toString() !== chatId) return;
-    // Since the Rick bot is in the group, Teh Operator can defer or act mysterious
+    // Defers to the Rick bot already in the group
     bot.sendMessage(chatId, `<i>Teh Operator does not care for tickers. Ask Rick. I only measure time.</i>`, { parse_mode: 'HTML' });
 });
 
@@ -96,6 +100,9 @@ bot.onText(/^\/scan/, async (msg) => {
 bot.on('new_chat_members', (msg) => {
     if (msg.chat.id.toString() !== chatId) return;
     msg.new_chat_members.forEach(user => {
+        // Prevent the bot from welcoming itself or other bots
+        if (user.is_bot) return;
+        
         const name = user.first_name || 'Initiate';
         const welcomeMsg = `[ NEW PEER DETECTED ]\n\nWelcome to the archive, <b>${name}</b>. \n\nEvery ledger records what moved. We record why you believed it would make you free.\n\nType /website to begin your investigation.`;
         bot.sendMessage(chatId, welcomeMsg, { parse_mode: 'HTML' });
@@ -105,6 +112,7 @@ bot.on('new_chat_members', (msg) => {
 // --- PASSIVE KEYWORD SURVEILLANCE ---
 bot.on('message', (msg) => {
     if (msg.chat.id.toString() !== chatId || !msg.text) return;
+    if (msg.text.startsWith('/')) return; // Ignore actual commands
     
     // 15 minute cooldown (900000 ms) so it isn't spammy
     const now = Date.now();
@@ -136,7 +144,7 @@ async function monitorTargetAddress() {
     try {
         console.log(`[${new Date().toISOString()}] SURVEILLANCE: Polling on-chain data for ${TARGET_ADDRESS}...`);
         
-        // Query the live PulseChain Blockscout V2 API with headers to bypass Cloudflare blocks
+        // Query the live PulseChain Blockscout V2 API
         const response = await fetch(`https://scan.pulsechain.com/api/v2/addresses/${TARGET_ADDRESS}/transactions`, {
             headers: {
                 'Accept': 'application/json',
@@ -144,13 +152,17 @@ async function monitorTargetAddress() {
             }
         });
 
-        // Safety check: If the explorer returns a 403/500 HTML page, stop here and try again later
-        if (!response.ok) {
-            console.log(`[SURVEILLANCE] API returned status ${response.status}. Skipping this cycle.`);
-            return; 
+        // Read the raw text first to prevent JSON parse crashes on Cloudflare blocks
+        const rawText = await response.text();
+        
+        // If the explorer returns an HTML security page, silently skip this cycle
+        if (rawText.trim().startsWith('<')) {
+            console.log(`[SURVEILLANCE WARNING] Explorer returned HTML (Cloudflare block). Skipping this cycle.`);
+            return;
         }
 
-        const data = await response.json();
+        // Parse the safe JSON data
+        const data = JSON.parse(rawText);
         
         // Ensure items array exists
         if (!data || !data.items || data.items.length === 0) return;
@@ -169,10 +181,14 @@ async function monitorTargetAddress() {
             lastSeenTxHash = latestTx.hash; // update our memory
             
             // Format the alert
-            const isOutgoing = latestTx.from.hash.toLowerCase() === TARGET_ADDRESS.toLowerCase();
+            let isOutgoing = false;
+            if (latestTx.from && latestTx.from.hash) {
+                isOutgoing = latestTx.from.hash.toLowerCase() === TARGET_ADDRESS.toLowerCase();
+            }
+            
             const direction = isOutgoing ? "🔴 OUTBOUND TRANSFER" : "🟢 INBOUND TRANSFER";
             
-            // Convert wei to whole PLS (Blockscout returns string wei value)
+            // Convert wei to whole PLS
             let valueStr = "0";
             if (latestTx.value) {
                 const plsValue = parseFloat(latestTx.value) / 1e18;
@@ -182,7 +198,7 @@ async function monitorTargetAddress() {
             const method = latestTx.method || "Transfer";
 
             const message = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
-                            `<b>Target:</b> <code>${TARGET_ADDRESS.substring(0,6)}...${TARGET_ADDRESS.substring(38)}</code>\n` +
+                            `<b>Wallet:</b> <code>${TARGET_ADDRESS.substring(0,6)}...${TARGET_ADDRESS.substring(38)}</code>\n` +
                             `<b>Action:</b> ${direction}\n` +
                             `<b>Method:</b> ${method}\n` +
                             `<b>Value:</b> ${valueStr} PLS\n\n` +
@@ -192,8 +208,7 @@ async function monitorTargetAddress() {
         }
 
     } catch (error) {
-        // Silently catch the error in the console so the bot doesn't crash
-        console.log(`[SURVEILLANCE WARNING] Could not parse explorer data this cycle. Retrying in 90s.`);
+        console.log(`[SURVEILLANCE ERROR] Failed to check explorer: ${error.message}`);
     }
 }
 
@@ -215,7 +230,7 @@ async function checkNews() {
             const matchLinks = [...data.contents.matchAll(/<link>(.*?)<\/link>/g)].map(m => m[1]);
             const matchDates = [...data.contents.matchAll(/<pubDate>(.*?)<\/pubDate>/g)].map(m => new Date(m[1]));
             
-            // Only look at the newest article
+            // Look at the newest article
             if (matchTitles.length > 1 && matchDates.length > 0) {
                 const articleDate = matchDates[0];
                 
@@ -229,7 +244,7 @@ async function checkNews() {
             }
         }
     } catch (err) {
-        console.log("[AUTO-SCANNER] Background wire check failed quietly.");
+        // Fail silently in the background
     }
 }
 

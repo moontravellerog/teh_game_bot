@@ -229,3 +229,75 @@ bot.on('message', (msg) => {
         }, cooldownTime);
     }
 });
+
+// ==========================================
+// NEW: ON-CHAIN ADDRESS SURVEILLANCE
+// ==========================================
+const TARGET_ADDRESS = '0xB8698CfFFdAAf26ca21fE8aA560c18cc2b2f5996';
+let lastSeenTxHash = null;
+
+async function monitorTargetAddress() {
+    try {
+        // Query the live PulseChain Blockscout V2 API
+        const response = await fetch(`https://scan.pulsechain.com/api/v2/addresses/${TARGET_ADDRESS}/transactions`);
+        const data = await response.json();
+
+        if (data && data.items && data.items.length > 0) {
+            const latestTx = data.items[0];
+            
+            // If this is the first run, establish the baseline hash silently so it doesn't spam old txs
+            if (lastSeenTxHash === null) {
+                lastSeenTxHash = latestTx.hash;
+                return;
+            }
+
+            // Trigger if a new transaction hash is detected on the ledger
+            if (latestTx.hash !== lastSeenTxHash) {
+                lastSeenTxHash = latestTx.hash;
+
+                // Determine transaction direction and details
+                const isOutgoing = latestTx.from?.hash?.toLowerCase() === TARGET_ADDRESS.toLowerCase();
+                const direction = isOutgoing ? "🔴 OUTBOUND" : "🟢 INBOUND";
+                const valuePLS = latestTx.value ? (Number(latestTx.value) / 1e18).toLocaleString('en-US', {maximumFractionDigits: 2}) : "0";
+                
+                // Capitalize the method for a cleaner look (e.g., "swapExactTokensForTokens")
+                const method = latestTx.method ? latestTx.method : (latestTx.value === "0" ? "Contract Execution" : "Standard PLS Transfer");
+
+                const message = `👁‍🗨 <b>TEH OPERATOR // ON-CHAIN ANOMALY DETECTED</b>\n\n` +
+                                `<i>Target subject wallet has initiated movement.</i>\n\n` +
+                                `<b>SUBJECT:</b> <code>${TARGET_ADDRESS.substring(0, 8)}...${TARGET_ADDRESS.substring(TARGET_ADDRESS.length - 6)}</code>\n` +
+                                `<b>ACTION:</b> ${direction}\n` +
+                                `<b>METHOD:</b> ${method}\n` +
+                                `<b>PLS VALUE:</b> ${valuePLS} PLS\n\n` +
+                                `🔗 <a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ VERIFY ON BLOCK EXPLORER ]</a>`;
+
+                bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true });
+            }
+        }
+    } catch (error) {
+        console.error("Error monitoring target address:", error.message);
+    }
+}
+
+// Poll the block explorer every 90 seconds
+setInterval(monitorTargetAddress, 90 * 1000);
+
+// ==========================================
+// NEW: GROUP WELCOME PROTOCOL
+// ==========================================
+bot.on('new_chat_members', (msg) => {
+    if (msg.chat.id.toString() !== chatId) return;
+
+    msg.new_chat_members.forEach(newMember => {
+        if (newMember.is_bot) return; // Ignore other bots
+
+        const name = enforceTehText(newMember.first_name || newMember.username || "Initiate");
+        
+        const welcomeMessage = `👁‍🗨 <b>TEH OPERATOR // NEW PEER DETECTED</b>\n\n` +
+                               `Welcome to teh archive, <b>${name}</b>.\n\n` +
+                               `<i>"Look at teh charts. But remember who is looking at you."</i>\n\n` +
+                               `Type <code>/</code> to view terminal commands.`;
+        
+        bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'HTML' });
+    });
+});

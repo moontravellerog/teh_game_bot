@@ -243,21 +243,41 @@ async function monitorTargetAddress() {
             const isOutgoing = latestTx.from && latestTx.from.hash && latestTx.from.hash.toLowerCase() === TARGET_ADDRESS.toLowerCase();
             const direction = isOutgoing ? "🔴 OUTBOUND TRANSFER" : "🟢 INBOUND TRANSFER";
 
+            // Determine the counterparty (who the target is interacting with)
+            let counterparty = "Contract Creation / Null";
+            if (isOutgoing && latestTx.to && latestTx.to.hash) {
+                counterparty = `${latestTx.to.hash.substring(0, 6)}...${latestTx.to.hash.substring(38)}`;
+            } else if (!isOutgoing && latestTx.from && latestTx.from.hash) {
+                counterparty = `${latestTx.from.hash.substring(0, 6)}...${latestTx.from.hash.substring(38)}`;
+            }
+
+            // Calculate PLS value
             let valueStr = "0";
             if (latestTx.value) {
                 const plsValue = parseFloat(latestTx.value) / 1e18;
                 valueStr = plsValue.toLocaleString(undefined, { maximumFractionDigits: 4 });
             }
 
+            // Calculate Gas/Fee paid
+            let feeStr = "Unknown";
+            if (latestTx.fee && latestTx.fee.value) {
+                const feeValue = parseFloat(latestTx.fee.value) / 1e18;
+                feeStr = feeValue.toLocaleString(undefined, { maximumFractionDigits: 4 });
+            }
+
             const method = latestTx.method || "Transfer";
+            const block = latestTx.block || "Pending";
 
             const message = 
                 `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
                 `<b>Target:</b> <code>${TARGET_ADDRESS.substring(0, 6)}...${TARGET_ADDRESS.substring(38)}</code>\n` +
                 `<b>Action:</b> ${direction}\n` +
                 `<b>Method:</b> ${method}\n` +
-                `<b>Value:</b> ${valueStr} PLS\n\n` +
-                `<a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ View on PulseScan ]</a>`;
+                `<b>Counterparty:</b> <code>${counterparty}</code>\n` +
+                `<b>Value:</b> ${valueStr} PLS\n` +
+                `<b>Network Fee:</b> ${feeStr} PLS\n` +
+                `<b>Block Height:</b> ${block}\n\n` +
+                `<a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ View Forensic Trace on PulseScan ]</a>`;
 
             if (process.env.TELEGRAM_CHAT_ID) {
                 bot.sendMessage(process.env.TELEGRAM_CHAT_ID, message, {

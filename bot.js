@@ -1,4 +1,6 @@
-require('dotenv').config();
+// Safe dotenv check: loads locally if present, ignores silently on Railway
+try { require('dotenv').config(); } catch (e) {}
+
 const TelegramBot = require('node-telegram-bot-api');
 
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -10,7 +12,6 @@ const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
 const TARGET_ADDRESS = '0xB8698CfFFdAAf26ca21fE8aA560c18cc2b2f5996';
 let lastSeenTxHash = null;
-let lastSeenNewsTime = Date.now();
 let lastSpokenTime = 0;
 
 console.log(`[${new Date().toISOString()}] TEH OPERATOR // SYSTEM BOOTING...`);
@@ -222,13 +223,13 @@ async function monitorTargetAddress() {
         }
 
         if (!data || !data.items || data.items.length === 0) {
-            console.log(`[SURVEILLANCE WARNING] No explorer endpoint returned JSON. Skipping this cycle.`);
+            console.log(`[SURVEILLANCE WARNING] Explorer returned non-JSON/Cloudflare challenge. Skipping cycle.`);
             return;
         }
 
         const latestTx = data.items[0];
 
-        // First cycle: establish baseline hash
+        // Establish baseline hash on boot
         if (lastSeenTxHash === null) {
             lastSeenTxHash = latestTx.hash;
             console.log(`[SURVEILLANCE] Initialized. Watching for transactions newer than: ${lastSeenTxHash}`);
@@ -270,7 +271,6 @@ async function monitorTargetAddress() {
     }
 }
 
-// Check target address every 90 seconds
+// 90-second polling interval + initial run 5s after boot
 setInterval(monitorTargetAddress, 90000);
-// Initial check after 5 seconds
 setTimeout(monitorTargetAddress, 5000);

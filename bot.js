@@ -91,7 +91,8 @@ bot.sendMessage(chatId, "<code>[ TEH OPERATOR // SYSTEM ONLINE ]</code>\n\n<i>Li
 bot.setMyCommands([
     { command: '/scan', description: 'Intercept live global OSINT dispatches' },
     { command: '/price', description: 'Query Chain ID 369 DEX telemetry' },
-    { command: '/clue', description: 'Request a cryptic cryptographic hint' }
+    { command: '/clue', description: 'Request a cryptic cryptographic hint' },
+    { command: '/website', description: 'Access teh encrypted archive' }
 ]).then(() => console.log("Command menu successfully registered."))
   .catch(err => console.error("Failed to register commands: ", err.message));
 
@@ -163,6 +164,13 @@ bot.onText(/\/clue/, (msg) => {
     const randomClue = clues[Math.floor(Math.random() * clues.length)];
     const message = `👁‍🗨 <b>TEH OPERATOR // INTERCEPT</b>\n\n${enforceTehText(randomClue)}`;
     bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+});
+
+// Official Website Link
+bot.onText(/\/website/, (msg) => {
+    if (msg.chat.id.toString() !== chatId) return;
+    const message = `👁‍🗨 <b>TEH OPERATOR // DOSSIER LOCATION</b>\n\n<i>Access teh complete immutable archive and Chamber 5555:</i>\n\n🔗 <b><a href="https://tehgame.xyz">tehgame.xyz</a></b>`;
+    bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true });
 });
 
 // ==========================================

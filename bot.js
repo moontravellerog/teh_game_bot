@@ -5,7 +5,7 @@ const parser = new Parser();
 
 // Load Token and Chat ID from Railway Environment Variables
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const chatId = process.env.TELEGRAM_CHAT_ID || '-1004387588820'; // Fallback to your hardcoded ID
+const chatId = process.env.TELEGRAM_CHAT_ID; 
 
 if (!token) {
     console.error("FATAL ERROR: TELEGRAM_BOT_TOKEN is missing.");
@@ -87,6 +87,14 @@ console.log("TeH GAME OSINT Bot Starting...");
 bot.sendMessage(chatId, "<code>[ TEH OPERATOR // SYSTEM ONLINE ]</code>\n\n<i>Live OSINT wire synchronized. Monitoring global data streams...</i>", { parse_mode: 'HTML' })
    .catch(err => console.error("Failed to send boot message. Check Chat ID.", err.message));
 
+// Register the autocomplete command menu with Telegram
+bot.setMyCommands([
+    { command: '/scan', description: 'Intercept live global OSINT dispatches' },
+    { command: '/price', description: 'Query Chain ID 369 DEX telemetry' },
+    { command: '/clue', description: 'Request a cryptic cryptographic hint' }
+]).then(() => console.log("Command menu successfully registered."))
+  .catch(err => console.error("Failed to register commands: ", err.message));
+
 // Run the automated background scan every 15 minutes
 setInterval(() => scanLiveNews(false), 15 * 60 * 1000);
 
@@ -94,7 +102,7 @@ setInterval(() => scanLiveNews(false), 15 * 60 * 1000);
 bot.onText(/\/scan/, (msg) => {
     if (msg.chat.id.toString() === chatId) {
         bot.sendMessage(chatId, "<code>[ 📡 MANUAL OVERRIDE: SCANNING LIVE WEB... ]</code>", { parse_mode: 'HTML' });
-        scanLiveNews(true); // Passes "true" to force it to bypass the time filter
+        scanLiveNews(true);
     }
 });
 
@@ -157,17 +165,59 @@ bot.onText(/\/clue/, (msg) => {
     bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
 });
 
-// Daily Lore Drops
-const loreMessages = [
-    "Every ledger records what moved. It never records why you believed it would make you free.",
-    "When there are two copies of reality, which one decides what is valuable?",
-    "To sacrifice is to make sacred. Notice how carefully legal disclaimers and quasi-religious language intertwine.",
-    "A smart contract executes teh exact same opcodes in Brooklyn, Helsinki, and Istanbul.",
-    "Five thousand five hundred and fifty-five days is fifteen years. Who are you fifteen years from now?"
+// ==========================================
+// NEW: PASSIVE SURVEILLANCE ENGINE
+// ==========================================
+let surveillanceCooldown = false;
+const cooldownTime = 15 * 60 * 1000; // 15 minutes between creepy replies
+
+const triggerWords = ['sacrifice', 'sec', 'oa', 'origin address', '5555', 'richard', 'heart', 'court', 'interpol', 'rick'];
+
+const observerResponses = [
+    "Are you asking teh right questions, or just teh questions teh ledger allows you to ask?",
+    "Teh Origin Address does not speak. It only observes. Just like me.",
+    "Code cannot be bribed, but markets are made of people. Who are you trusting?",
+    "You look at teh charts. But who is looking at you?",
+    "Every sacrifice leaves a trace. Even teh ones you think are hidden.",
+    "I see you asking Rick for teh price. But does Rick tell you teh cost?",
+    "Do not trust teh timestamps. 03:09 is always closer than it appears.",
+    "A machine gives you numbers. I give you teh silence between them."
 ];
 
-setInterval(() => {
-    const randomLore = loreMessages[Math.floor(Math.random() * loreMessages.length)];
-    const message = `🎙 <b>TRANSMISSION // TEH OPERATOR</b>\n\n<i>"${enforceTehText(randomLore)}"</i>`;
-    bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
-}, 24 * 60 * 60 * 1000);
+bot.on('message', (msg) => {
+    // Ignore commands and empty messages
+    if (!msg.text || msg.text.startsWith('/')) return;
+    // Only monitor the designated group chat
+    if (msg.chat.id.toString() !== chatId) return; 
+
+    // If cooldown is active, stay silent
+    if (surveillanceCooldown) return;
+
+    const textLower = msg.text.toLowerCase();
+    
+    // Check if the message contains any of the trigger words
+    const isTriggered = triggerWords.some(word => {
+        // Use a simple boundary check to avoid matching parts of words (like 'second' for 'sec')
+        const regex = new RegExp(`\\b${word}\\b`, 'i');
+        return regex.test(textLower);
+    });
+
+    if (isTriggered) {
+        surveillanceCooldown = true;
+        
+        const response = observerResponses[Math.floor(Math.random() * observerResponses.length)];
+        
+        // Add a slight 3-second delay so it feels like someone was actually reading and typing
+        setTimeout(() => {
+            bot.sendMessage(chatId, `👁‍🗨 <i>"${enforceTehText(response)}"</i>`, { 
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id 
+            }).catch(err => console.error(err));
+        }, 3000);
+
+        // Reset the cooldown after 15 minutes
+        setTimeout(() => {
+            surveillanceCooldown = false;
+        }, cooldownTime);
+    }
+});

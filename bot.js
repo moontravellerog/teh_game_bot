@@ -1,6 +1,9 @@
+// Safe dotenv check: loads locally if present, ignores silently on Railway
 try { require('dotenv').config(); } catch (e) {}
 
 const TelegramBot = require('node-telegram-bot-api');
+const Parser = require('rss-parser');
+const parser = new Parser();
 
 if (!process.env.TELEGRAM_BOT_TOKEN) {
     console.error("FATAL ERROR: TELEGRAM_BOT_TOKEN is not defined in environment variables.");
@@ -128,15 +131,21 @@ bot.onText(/\/scan/, async (msg) => {
     bot.sendMessage(msg.chat.id, `<code>[ 📡 SCANNING LIVE WEB... ]</code>`, { parse_mode: 'HTML' });
     try {
         const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent('Richard Heart OR PulseChain OR HEX crypto')}&hl=en-US&gl=US&ceid=US:en`;
-        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
-        const data = await res.json();
-        const items = data.items || [];
+        
+        // Use rss-parser directly instead of the unreliable rss2json API
+        const feed = await parser.parseURL(rssUrl);
+        const items = feed.items || [];
+        
         if (items.length === 0) return bot.sendMessage(msg.chat.id, `<i>No recent dispatches returned.</i>`, { parse_mode: 'HTML' });
         
         let message = `🛰 <b>INTELLIGENCE WIRE</b>\n\n`;
-        items.slice(0, 3).forEach(art => { message += `• <a href="${art.link}"><b>${art.title}</b></a>\n  <i>${art.pubDate ? art.pubDate.substring(0,16) : 'Recent'}</i>\n\n`; });
+        items.slice(0, 3).forEach(art => { 
+            message += `• <a href="${art.link}"><b>${art.title}</b></a>\n  <i>${art.pubDate ? art.pubDate.substring(0,16) : 'Recent'}</i>\n\n`; 
+        });
+        
         bot.sendMessage(msg.chat.id, message, { parse_mode: 'HTML', disable_web_page_preview: true });
     } catch (e) {
+        console.error("Scan Error:", e);
         bot.sendMessage(msg.chat.id, `⚠️ <i>Wire scan failed.</i>`, { parse_mode: 'HTML' });
     }
 });

@@ -56,13 +56,23 @@ function resolveAddressName(addressStr) {
     return "UNIDENTIFIED WALLET";
 }
 
+// Console Logs
 console.log(`[${new Date().toISOString()}] TEH OPERATOR // SYSTEM BOOTING...`);
 console.log(`[SYS] Loaded ${TARGET_ADDRESSES.length} target wallets into surveillance mesh.`);
+
+// Send System Online message to Telegram Chat on Startup
+if (process.env.TELEGRAM_CHAT_ID) {
+    bot.sendMessage(process.env.TELEGRAM_CHAT_ID, 
+        `<code>[ TEH OPERATOR // SYSTEM ONLINE ]</code>\n\n<i>Live OSINT wire synchronized. Monitoring global data streams...</i>`, 
+        { parse_mode: 'HTML' }
+    ).catch(() => {});
+}
 
 // --- 2. COMMAND MENU ---
 bot.setMyCommands([
     { command: '/scan', description: 'Force real-time OSINT scan for breaking developments' },
-    { command: '/website', description: 'Access teh official encrypted archive & dossier' },
+    { command: '/dossier', description: 'Query target ledger metadata (/dossier <name>)' },
+    { command: '/wallets', description: 'Inspect full surveillance entity directory' },
     { command: '/price', description: 'Check live PulseChain ecosystem telemetry' },
     { command: '/help', description: 'Display available surveillance directives' }
 ]).catch(() => {});
@@ -89,7 +99,7 @@ bot.on('new_chat_members', (msg) => {
 
 // --- 4. TELEGRAM COMMANDS ---
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, `<code>[ SYSTEM READY // DIRECTIVES ACTIVE ]</code>\n\nUse /scan to query breaking dispatches, /website for the primary dossier, or /price for live telemetry.`, { parse_mode: 'HTML' });
+    bot.sendMessage(msg.chat.id, `<code>[ SYSTEM READY // DIRECTIVES ACTIVE ]</code>\n\nUse /scan for live wire, /dossier <name> to check a target, or /wallets for the directory.`, { parse_mode: 'HTML' });
 });
 
 bot.onText(/\/website/, (msg) => {
@@ -100,8 +110,98 @@ bot.onText(/\/website/, (msg) => {
 
 bot.onText(/\/help/, (msg) => {
     bot.sendMessage(msg.chat.id, 
-        `<code>[ AVAILABLE PROTOCOLS ]</code>\n\n• <b>/website</b> - Primary dossier\n• <b>/scan</b> - Global intelligence news scan\n• <b>/price</b> - PulseChain DEX telemetry\n• <b>Target Surveillance</b> - Automatic Multi-Chain Tracking`, 
+        `<code>[ AVAILABLE PROTOCOLS ]</code>\n\n• <b>/website</b> - Primary dossier\n• <b>/scan</b> - Global intelligence news scan\n• <b>/dossier &lt;name&gt;</b> - Inspect specific target wallet\n• <b>/wallets</b> - List all tracked surveillance targets\n• <b>/price</b> - PulseChain DEX telemetry`, 
         { parse_mode: 'HTML' });
+});
+
+// --- WALLET DIRECTORY COMMAND (/wallets) ---
+bot.onText(/\/wallets/, (msg) => {
+    let listMsg = `📁 <b>SURVEILLANCE ENTITY DIRECTORY</b>\n\n`;
+    
+    let categories = {
+        "pDONG Hubs": ['pDONG WALLET', 'pDONG 2 WALLET'],
+        "God Whales": Object.values(ADDRESS_BOOK).filter(name => name.startsWith('GOD WHALE')),
+        "HEX Whales": Object.values(ADDRESS_BOOK).filter(name => name.startsWith('HEX WHALE')),
+        "Rackham": Object.values(ADDRESS_BOOK).filter(name => name.startsWith('RACKHAM')),
+        "Origin Addresses (OA)": Object.values(ADDRESS_BOOK).filter(name => name.startsWith('OA'))
+    };
+
+    for (const [cat, names] of Object.entries(categories)) {
+        if (names.length > 0) {
+            listMsg += `🔹 <b>${cat}:</b>\n`;
+            names.forEach(n => { listMsg += `• ${n}\n`; });
+            listMsg += `\n`;
+        }
+    }
+
+    listMsg += `<i>Use /dossier &lt;Name&gt; to pull real-time balances.</i>`;
+    bot.sendMessage(msg.chat.id, listMsg, { parse_mode: 'HTML' });
+});
+
+// --- DOSSIER QUERY COMMAND (/dossier) ---
+bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const query = match[1] ? match[1].trim().toLowerCase() : '';
+
+    if (!query) {
+        return bot.sendMessage(chatId, `⚠️ <i>Usage error. Specify a target designation (e.g., /dossier GOD WHALE 1 or /dossier pDONG WALLET).</i>`, { parse_mode: 'HTML' });
+    }
+
+    // Find address by name or direct input
+    let targetAddress = null;
+    let targetName = "CUSTOM TARGET";
+
+    for (const [addr, name] of Object.entries(ADDRESS_BOOK)) {
+        if (name.toLowerCase().includes(query) || addr.toLowerCase() === query) {
+            targetAddress = addr;
+            targetName = name;
+            break;
+        }
+    }
+
+    if (!targetAddress) {
+        return bot.sendMessage(chatId, `⚠️ <i>Target designation not found in surveillance ledger. Use /wallets to review active entities.</i>`, { parse_mode: 'HTML' });
+    }
+
+    bot.sendMessage(chatId, `<code>[ QUERYING LEDGER FOR ${targetName}... ]</code>`, { parse_mode: 'HTML' });
+
+    try {
+        // Fetch PulseChain balance via Blockscout API
+        let plsBalance = "0.00";
+        try {
+            const plsRes = await fetch(`https://api.scan.pulsechain.com/api/v2/addresses/${targetAddress}`);
+            const plsJson = await plsRes.json();
+            if (plsJson && plsJson.coin_balance) {
+                plsBalance = (parseFloat(plsJson.coin_balance) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 2});
+            }
+        } catch (e) {}
+
+        // Fetch Ethereum balance via Etherscan API (if key available)
+        let ethBalance = "N/A";
+        if (process.env.ETHERSCAN_API_KEY) {
+            try {
+                const ethRes = await fetch(`https://api.etherscan.io/api?module=account&action=balance&address=${targetAddress}&tag=latest&apikey=${process.env.ETHERSCAN_API_KEY}`);
+                const ethJson = await ethRes.json();
+                if (ethJson.status === "1" && ethJson.result) {
+                    ethBalance = (parseFloat(ethJson.result) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
+                }
+            } catch (e) {}
+        }
+
+        const dossierMsg = `📁 <b>TARGET DOSSIER GENERATED</b>\n\n` +
+                           `<b>Designation:</b> ${targetName}\n` +
+                           `<code>${targetAddress}</code>\n\n` +
+                           `🟢 <b>PulseChain Reserves:</b> ${plsBalance} PLS\n` +
+                           `🔵 <b>Ethereum Reserves:</b> ${ethBalance} ETH\n\n` +
+                           `<b>Operational Status:</b> ACTIVE (Monitored Dual-Chain)\n` +
+                           `<a href="https://scan.pulsechain.com/address/${targetAddress}">[ View Full PulseScan Audit ]</a>\n\n` +
+                           `<code>[ End of Intercept ]</code>`;
+
+        bot.sendMessage(chatId, dossierMsg, { parse_mode: 'HTML', disable_web_page_preview: true });
+
+    } catch (err) {
+        bot.sendMessage(chatId, `⚠️ <i>Ledger query severed. Target telemetry unavailable.</i>`, { parse_mode: 'HTML' });
+    }
 });
 
 bot.onText(/\/price/, async (msg) => {
@@ -131,8 +231,6 @@ bot.onText(/\/scan/, async (msg) => {
     bot.sendMessage(msg.chat.id, `<code>[ 📡 SCANNING LIVE WEB... ]</code>`, { parse_mode: 'HTML' });
     try {
         const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent('Richard Heart OR PulseChain OR HEX crypto')}&hl=en-US&gl=US&ceid=US:en`;
-        
-        // Use rss-parser directly instead of the unreliable rss2json API
         const feed = await parser.parseURL(rssUrl);
         const items = feed.items || [];
         

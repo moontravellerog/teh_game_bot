@@ -14,6 +14,7 @@ const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 // All addresses must be lowercase for accurate matching
 const ADDRESS_BOOK = {
     '0xb8698cfffdaaf26ca21fe8aa560c18cc2b2f5996': 'pDONG WALLET',
+    '0xdca9327a57b62afe68a7145c106c1bb6dba7ba21': 'pDONG 2 WALLET',
     '0xaf10cc6c50defff901b535691550d7af208939c5': 'GOD WHALE 1',
     '0x2bde3b9c0129be4689e245ba689b9b0ae4ac666d': 'GOD WHALE 2',
     '0xf1bd8e36a0e48650bdb28056277b05e851ebbae8': 'GOD WHALE 3',
@@ -48,12 +49,12 @@ let memoryState = {
     ethereum: {}
 };
 
-// Helper: Convert address to known name or shorten it
+// Helper: Convert address to known name
 function resolveAddressName(addressStr) {
-    if (!addressStr) return "Unknown / Null";
+    if (!addressStr) return "UNKNOWN CONTRACT / NULL";
     const lower = addressStr.toLowerCase();
     if (ADDRESS_BOOK[lower]) return ADDRESS_BOOK[lower];
-    return `${addressStr.substring(0, 6)}...${addressStr.substring(addressStr.length - 4)}`;
+    return "UNIDENTIFIED WALLET";
 }
 
 let lastSpokenTime = 0;
@@ -210,11 +211,13 @@ async function checkPulseChain(address) {
 
             const isOutgoing = latestTx.from && latestTx.from.hash && latestTx.from.hash.toLowerCase() === address.toLowerCase();
             const direction = isOutgoing ? "🔴 OUTBOUND" : "🟢 INBOUND";
+            const directionLabel = isOutgoing ? "Sent to:" : "Received from:";
             
             // Resolve Names
             const targetName = resolveAddressName(address);
             const counterpartyAddr = isOutgoing ? latestTx.to?.hash : latestTx.from?.hash;
             const counterpartyName = resolveAddressName(counterpartyAddr);
+            const counterpartyFull = counterpartyAddr ? counterpartyAddr : "Null";
             
             let valueStr = "0";
             if (latestTx.value) valueStr = (parseFloat(latestTx.value) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
@@ -226,14 +229,16 @@ async function checkPulseChain(address) {
 
             const msg = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
                         `<b>Network:</b> PULSECHAIN 🟢\n` +
-                        `<b>Target:</b> <code>${targetName}</code>\n` +
+                        `<b>Target:</b> ${targetName}\n` +
+                        `<code>${address}</code>\n\n` +
                         `<b>Action:</b> ${direction}\n` +
                         `<b>Method:</b> ${method}\n` +
-                        `<b>Counterparty:</b> <code>${counterpartyName}</code>\n` +
+                        `<b>${directionLabel}</b> ${counterpartyName}\n` +
+                        `<code>${counterpartyFull}</code>\n\n` +
                         `<b>Value:</b> ${valueStr} PLS\n` +
-                        `<b>Fee:</b> ${feeStr} PLS\n` +
-                        `<b>Block:</b> ${latestTx.block}\n\n` +
-                        `<a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ View Trace on PulseScan ]</a>`;
+                        `<b>Network Fee:</b> ${feeStr} PLS\n` +
+                        `<b>Block Height:</b> ${latestTx.block}\n\n` +
+                        `<a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ View Forensic Trace on PulseScan ]</a>`;
 
             if (process.env.TELEGRAM_CHAT_ID) {
                 bot.sendMessage(process.env.TELEGRAM_CHAT_ID, msg, { parse_mode: 'HTML', disable_web_page_preview: true }).catch(()=>{});
@@ -264,11 +269,13 @@ async function checkEthereum(address) {
 
             const isOutgoing = latestTx.from.toLowerCase() === address.toLowerCase();
             const direction = isOutgoing ? "🔴 OUTBOUND" : "🟢 INBOUND";
+            const directionLabel = isOutgoing ? "Sent to:" : "Received from:";
             
             // Resolve Names
             const targetName = resolveAddressName(address);
             const counterpartyAddr = isOutgoing ? latestTx.to : latestTx.from;
             const counterpartyName = resolveAddressName(counterpartyAddr);
+            const counterpartyFull = counterpartyAddr ? counterpartyAddr : "Null";
             
             let valueStr = "0";
             if (latestTx.value) valueStr = (parseFloat(latestTx.value) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
@@ -283,14 +290,16 @@ async function checkEthereum(address) {
 
             const msg = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
                         `<b>Network:</b> ETHEREUM 🔵\n` +
-                        `<b>Target:</b> <code>${targetName}</code>\n` +
+                        `<b>Target:</b> ${targetName}\n` +
+                        `<code>${address}</code>\n\n` +
                         `<b>Action:</b> ${direction}\n` +
                         `<b>Method:</b> ${method}\n` +
-                        `<b>Counterparty:</b> <code>${counterpartyName}</code>\n` +
+                        `<b>${directionLabel}</b> ${counterpartyName}\n` +
+                        `<code>${counterpartyFull}</code>\n\n` +
                         `<b>Value:</b> ${valueStr} ETH\n` +
-                        `<b>Fee:</b> ${feeStr} ETH\n` +
-                        `<b>Block:</b> ${latestTx.blockNumber}\n\n` +
-                        `<a href="https://etherscan.io/tx/${latestTx.hash}">[ View Trace on Etherscan ]</a>`;
+                        `<b>Network Fee:</b> ${feeStr} ETH\n` +
+                        `<b>Block Height:</b> ${latestTx.blockNumber}\n\n` +
+                        `<a href="https://etherscan.io/tx/${latestTx.hash}">[ View Forensic Trace on Etherscan ]</a>`;
 
             if (process.env.TELEGRAM_CHAT_ID) {
                 bot.sendMessage(process.env.TELEGRAM_CHAT_ID, msg, { parse_mode: 'HTML', disable_web_page_preview: true }).catch(()=>{});

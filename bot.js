@@ -51,7 +51,7 @@ let memoryState = {
 
 // Helper: Convert address to known name
 function resolveAddressName(addressStr) {
-    if (!addressStr) return "UNKNOWN CONTRACT / NULL";
+    if (!addressStr) return "UNKNOWN CONTRACT";
     const lower = addressStr.toLowerCase();
     if (ADDRESS_BOOK[lower]) return ADDRESS_BOOK[lower];
     return "UNIDENTIFIED WALLET";
@@ -70,15 +70,7 @@ bot.setMyCommands([
     { command: '/help', description: 'Display available surveillance directives' }
 ]).catch(() => {});
 
-if (process.env.TELEGRAM_CHAT_ID) {
-    bot.sendMessage(process.env.TELEGRAM_CHAT_ID, 
-        `<code>[ TEH OPERATOR // SYSTEM ONLINE ]</code>\n\n` +
-        `<i>Live OSINT wire synchronized. Active surveillance initialized on ${TARGET_ADDRESSES.length} core ecosystem wallets across PulseChain and Ethereum.</i>`,
-        { parse_mode: 'HTML' }
-    ).catch(() => {});
-}
-
-// --- 3. WELCOME PROTOCOL ---
+// --- 3. WELCOME PROTOCOL (Auto-Delete after 30s) ---
 bot.on('new_chat_members', (msg) => {
     const newMembers = msg.new_chat_members;
     newMembers.forEach((member) => {
@@ -91,10 +83,9 @@ bot.on('new_chat_members', (msg) => {
             `<code>Directive: Type /help or /website to inspect the archive.</code>`,
             { parse_mode: 'HTML' }
         ).then((sentMsg) => {
-            // Auto-delete the welcome message after 30 seconds
             setTimeout(() => {
                 bot.deleteMessage(msg.chat.id, sentMsg.message_id).catch(() => {});
-            }, 30000);
+            }, 30000); // 30 seconds
         }).catch(() => {});
     });
 });
@@ -112,7 +103,7 @@ bot.onText(/\/website/, (msg) => {
 
 bot.onText(/\/help/, (msg) => {
     bot.sendMessage(msg.chat.id, 
-        `<code>[ AVAILABLE PROTOCOLS ]</code>\n\n• <b>/website</b> - Primary dossier\n• <b>/scan</b> - Global intelligence news scan\n• <b>/price</b> - PulseChain DEX telemetry\n• <b>Target Surveillance</b> - Automatic Multi-Chain Wallet Tracking`, 
+        `<code>[ AVAILABLE PROTOCOLS ]</code>\n\n• <b>/website</b> - Primary dossier\n• <b>/scan</b> - Global intelligence news scan\n• <b>/price</b> - PulseChain DEX telemetry\n• <b>Target Surveillance</b> - Automatic Multi-Chain Tracking`, 
         { parse_mode: 'HTML' });
 });
 
@@ -167,7 +158,7 @@ bot.on('message', (msg) => {
     if (!msg.text || msg.text.startsWith('/')) return;
     const text = msg.text.toLowerCase();
     const now = Date.now();
-    if (now - lastSpokenTime < 15 * 60 * 1000) return; // 15 minute cooldown
+    if (now - lastSpokenTime < 15 * 60 * 1000) return; // 15 min cooldown
 
     for (const item of TRIGGERS) {
         if (item.words.some(w => text.includes(w))) {
@@ -178,7 +169,7 @@ bot.on('message', (msg) => {
     }
 });
 
-// --- 6. MULTI-CHAIN WALLET SURVEILLANCE ENGINE ---
+// --- 6. MULTI-CHAIN SURVEILLANCE ENGINE ---
 async function checkPulseChain(address) {
     try {
         const endpoints = [
@@ -200,7 +191,6 @@ async function checkPulseChain(address) {
 
         const latestTx = data.items[0];
         
-        // Boot initialization
         if (!memoryState.pulsechain[address]) {
             memoryState.pulsechain[address] = latestTx.hash;
             return;
@@ -210,32 +200,60 @@ async function checkPulseChain(address) {
             memoryState.pulsechain[address] = latestTx.hash;
 
             const isOutgoing = latestTx.from && latestTx.from.hash && latestTx.from.hash.toLowerCase() === address.toLowerCase();
-            const direction = isOutgoing ? "🔴 OUTBOUND" : "🟢 INBOUND";
-            const directionLabel = isOutgoing ? "Sent to:" : "Received from:";
-            
-            // Resolve Names
             const targetName = resolveAddressName(address);
+            
             const counterpartyAddr = isOutgoing ? latestTx.to?.hash : latestTx.from?.hash;
             const counterpartyName = resolveAddressName(counterpartyAddr);
-            const counterpartyFull = counterpartyAddr ? counterpartyAddr : "Null";
+            const counterpartyFull = counterpartyAddr ? counterpartyAddr : "0x0000000000000000000000000000000000000000";
             
-            let valueStr = "0";
-            if (latestTx.value) valueStr = (parseFloat(latestTx.value) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
-
+            const nativeValue = latestTx.value ? parseFloat(latestTx.value) / 1e18 : 0;
+            const valueStr = nativeValue.toLocaleString(undefined, {maximumFractionDigits: 4});
+            
             let feeStr = "Unknown";
             if (latestTx.fee && latestTx.fee.value) feeStr = (parseFloat(latestTx.fee.value) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
 
-            const method = latestTx.method || "Transfer";
+            let method = latestTx.method || "Transfer";
+            
+            // Build Dynamic Action Sentence
+            let actionSummary = "";
+            if (isOutgoing) {
+                if (nativeValue > 0) {
+                    actionSummary = `🔴 <b>Sent</b> ${valueStr} PLS <b>to</b> ${counterpartyName}`;
+                } else if (method.toLowerCase().includes('swap') || method.toLowerCase().includes('execute')) {
+                    actionSummary = `🔄 <b>Swapped tokens via</b> ${counterpartyName}`;
+                } else {
+                    actionSummary = `⚙️ <b>Executed ${method} on</b> ${counterpartyName}`;
+                }
+            } else {
+                if (nativeValue > 0) {
+                    actionSummary = `🟢 <b>Received</b> ${valueStr} PLS <b>from</b> ${counterpartyName}`;
+                } else {
+                    actionSummary = `📥 <b>Targeted by ${method} from</b> ${counterpartyName}`;
+                }
+            }
+
+            // Extract exact token transfers if available
+            let tokenDetail = "";
+            if (latestTx.token_transfers && latestTx.token_transfers.length > 0) {
+                tokenDetail = `\n<b>Tokens Moved:</b>\n`;
+                const transfers = latestTx.token_transfers.slice(0, 4); // Show up to 4 token transfers
+                transfers.forEach(tt => {
+                    if (tt.token && tt.total) {
+                        const dec = parseInt(tt.token.decimals || "18");
+                        const sym = tt.token.symbol || "Token";
+                        const val = parseFloat(tt.total.value || "0") / Math.pow(10, dec);
+                        tokenDetail += `• <code>${val.toLocaleString(undefined, {maximumFractionDigits: 2})} ${sym}</code>\n`;
+                    }
+                });
+            }
 
             const msg = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
                         `<b>Network:</b> PULSECHAIN 🟢\n` +
                         `<b>Target:</b> ${targetName}\n` +
                         `<code>${address}</code>\n\n` +
-                        `<b>Action:</b> ${direction}\n` +
-                        `<b>Method:</b> ${method}\n` +
-                        `<b>${directionLabel}</b> ${counterpartyName}\n` +
-                        `<code>${counterpartyFull}</code>\n\n` +
-                        `<b>Value:</b> ${valueStr} PLS\n` +
+                        `${actionSummary}\n` +
+                        `<code>${counterpartyFull}</code>\n` +
+                        `${tokenDetail}\n` +
                         `<b>Network Fee:</b> ${feeStr} PLS\n` +
                         `<b>Block Height:</b> ${latestTx.block}\n\n` +
                         `<a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ View Forensic Trace on PulseScan ]</a>`;
@@ -258,7 +276,6 @@ async function checkEthereum(address) {
 
         const latestTx = json.result[0];
 
-        // Boot initialization
         if (!memoryState.ethereum[address]) {
             memoryState.ethereum[address] = latestTx.hash;
             return;
@@ -268,17 +285,14 @@ async function checkEthereum(address) {
             memoryState.ethereum[address] = latestTx.hash;
 
             const isOutgoing = latestTx.from.toLowerCase() === address.toLowerCase();
-            const direction = isOutgoing ? "🔴 OUTBOUND" : "🟢 INBOUND";
-            const directionLabel = isOutgoing ? "Sent to:" : "Received from:";
-            
-            // Resolve Names
             const targetName = resolveAddressName(address);
+            
             const counterpartyAddr = isOutgoing ? latestTx.to : latestTx.from;
             const counterpartyName = resolveAddressName(counterpartyAddr);
-            const counterpartyFull = counterpartyAddr ? counterpartyAddr : "Null";
+            const counterpartyFull = counterpartyAddr ? counterpartyAddr : "0x0000000000000000000000000000000000000000";
             
-            let valueStr = "0";
-            if (latestTx.value) valueStr = (parseFloat(latestTx.value) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
+            const nativeValue = latestTx.value ? parseFloat(latestTx.value) / 1e18 : 0;
+            const valueStr = nativeValue.toLocaleString(undefined, {maximumFractionDigits: 4});
             
             let feeStr = "Unknown";
             if (latestTx.gasUsed && latestTx.gasPrice) {
@@ -286,17 +300,33 @@ async function checkEthereum(address) {
                 feeStr = (feeWei / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
             }
 
-            const method = latestTx.functionName ? latestTx.functionName.split('(')[0] : "Transfer";
+            let method = latestTx.functionName ? latestTx.functionName.split('(')[0] : "Transfer";
+            if (!method) method = "Transfer";
+
+            // Build Dynamic Action Sentence
+            let actionSummary = "";
+            if (isOutgoing) {
+                if (nativeValue > 0) {
+                    actionSummary = `🔴 <b>Sent</b> ${valueStr} ETH <b>to</b> ${counterpartyName}`;
+                } else if (method.toLowerCase().includes('swap') || method.toLowerCase().includes('execute')) {
+                    actionSummary = `🔄 <b>Swapped tokens via</b> ${counterpartyName}`;
+                } else {
+                    actionSummary = `⚙️ <b>Executed ${method} on</b> ${counterpartyName}`;
+                }
+            } else {
+                if (nativeValue > 0) {
+                    actionSummary = `🟢 <b>Received</b> ${valueStr} ETH <b>from</b> ${counterpartyName}`;
+                } else {
+                    actionSummary = `📥 <b>Targeted by ${method} from</b> ${counterpartyName}`;
+                }
+            }
 
             const msg = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
                         `<b>Network:</b> ETHEREUM 🔵\n` +
                         `<b>Target:</b> ${targetName}\n` +
                         `<code>${address}</code>\n\n` +
-                        `<b>Action:</b> ${direction}\n` +
-                        `<b>Method:</b> ${method}\n` +
-                        `<b>${directionLabel}</b> ${counterpartyName}\n` +
+                        `${actionSummary}\n` +
                         `<code>${counterpartyFull}</code>\n\n` +
-                        `<b>Value:</b> ${valueStr} ETH\n` +
                         `<b>Network Fee:</b> ${feeStr} ETH\n` +
                         `<b>Block Height:</b> ${latestTx.blockNumber}\n\n` +
                         `<a href="https://etherscan.io/tx/${latestTx.hash}">[ View Forensic Trace on Etherscan ]</a>`;
@@ -315,12 +345,12 @@ async function runSurveillanceCycle() {
         await checkPulseChain(address);
         await checkEthereum(address);
         
-        // 300ms pause between wallets to respect Free-Tier 5 req/sec limit
+        // 300ms pause between wallets to respect Free-Tier 5 req/sec limit on Ethereum
         await new Promise(resolve => setTimeout(resolve, 300));
     }
 }
 
 // Sweep all wallets every 90 seconds
 setInterval(runSurveillanceCycle, 90000);
-// Trigger initial sweep 5 seconds after boot
 setTimeout(runSurveillanceCycle, 5000);
+```eof

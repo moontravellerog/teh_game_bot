@@ -56,6 +56,70 @@ function resolveAddressName(addressStr) {
     return "UNIDENTIFIED WALLET";
 }
 
+function formatTimeAgo(dateInput) {
+    if (!dateInput) return "Unknown";
+    const timestampMs = typeof dateInput === 'number' ? dateInput * 1000 : new Date(dateInput).getTime();
+    const diffMs = Date.now() - timestampMs;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
+
+// Helper: Fetch ETH Balance using Etherscan V2 API -> V1 API -> Public RPC
+async function fetchEthBalance(address) {
+    const apiKey = process.env.ETHERSCAN_API_KEY ? process.env.ETHERSCAN_API_KEY.trim() : '';
+    
+    if (apiKey) {
+        // 1. Try Etherscan V2 API
+        try {
+            const v2Url = `https://api.etherscan.io/v2/api?chainid=1&module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
+            const res = await fetch(v2Url);
+            const json = await res.json();
+            if (json.status === "1" && json.result) {
+                return (parseFloat(json.result) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
+            }
+        } catch (e) {}
+
+        // 2. Try Etherscan V1 API fallback
+        try {
+            const v1Url = `https://api.etherscan.io/api?module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
+            const res = await fetch(v1Url);
+            const json = await res.json();
+            if (json.status === "1" && json.result) {
+                return (parseFloat(json.result) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
+            }
+        } catch (e) {}
+    }
+
+    // 3. Fallback to direct Ethereum RPC if Etherscan rate-limits (5 req/sec)
+    const rpcUrls = ['https://eth.llamarpc.com', 'https://ethereum-rpc.publicnode.com', 'https://rpc.ankr.com/eth'];
+    for (const rpc of rpcUrls) {
+        try {
+            const rpcRes = await fetch(rpc, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'eth_getBalance',
+                    params: [address, 'latest'],
+                    id: 1
+                })
+            });
+            const rpcJson = await rpcRes.json();
+            if (rpcJson && rpcJson.result) {
+                const wei = BigInt(rpcJson.result);
+                return (Number(wei) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
+            }
+        } catch (e) {}
+    }
+
+    return "0.0000";
+}
+
 // Console Logs
 console.log(`[${new Date().toISOString()}] TEH OPERATOR // SYSTEM BOOTING...`);
 console.log(`[SYS] Loaded ${TARGET_ADDRESSES.length} target wallets into surveillance mesh.`);
@@ -147,7 +211,6 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
         return bot.sendMessage(chatId, `⚠️ <i>Usage error. Specify a target designation (e.g., /dossier GOD WHALE 1 or /dossier pDONG WALLET).</i>`, { parse_mode: 'HTML' });
     }
 
-    // Find address by name or direct input
     let targetAddress = null;
     let targetName = "CUSTOM TARGET";
 
@@ -166,27 +229,29 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
     bot.sendMessage(chatId, `<code>[ QUERYING LEDGER FOR ${targetName}... ]</code>`, { parse_mode: 'HTML' });
 
     try {
-        // Fetch PulseChain balance via Blockscout API
+        // 1. Fetch PulseChain balance & last tx
         let plsBalance = "0.00";
+        let lastFootprint = "No recent on-chain activity";
         try {
             const plsRes = await fetch(`https://api.scan.pulsechain.com/api/v2/addresses/${targetAddress}`);
             const plsJson = await plsRes.json();
             if (plsJson && plsJson.coin_balance) {
                 plsBalance = (parseFloat(plsJson.coin_balance) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 2});
             }
+
+            const txRes = await fetch(`https://api.scan.pulsechain.com/api/v2/addresses/${targetAddress}/transactions`);
+            const txJson = await txRes.json();
+            if (txJson && txJson.items && txJson.items.length > 0) {
+                const latest = txJson.items[0];
+                const isOut = latest.from?.hash?.toLowerCase() === targetAddress.toLowerCase();
+                const dir = isOut ? "Outbound" : "Inbound";
+                const method = latest.method || "Transfer";
+                lastFootprint = `${formatTimeAgo(latest.timestamp)} (${dir} ${method} on PulseChain)`;
+            }
         } catch (e) {}
 
-        // Fetch Ethereum balance via Etherscan API (if key available)
-        let ethBalance = "N/A";
-        if (process.env.ETHERSCAN_API_KEY) {
-            try {
-                const ethRes = await fetch(`https://api.etherscan.io/api?module=account&action=balance&address=${targetAddress}&tag=latest&apikey=${process.env.ETHERSCAN_API_KEY}`);
-                const ethJson = await ethRes.json();
-                if (ethJson.status === "1" && ethJson.result) {
-                    ethBalance = (parseFloat(ethJson.result) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
-                }
-            } catch (e) {}
-        }
+        // 2. Fetch Ethereum balance via Etherscan V2 / RPC
+        const ethBalance = await fetchEthBalance(targetAddress);
 
         const dossierMsg = `📁 <b>TARGET DOSSIER GENERATED</b>\n\n` +
                            `<b>Designation:</b> ${targetName}\n` +
@@ -194,7 +259,8 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
                            `🟢 <b>PulseChain Reserves:</b> ${plsBalance} PLS\n` +
                            `🔵 <b>Ethereum Reserves:</b> ${ethBalance} ETH\n\n` +
                            `<b>Operational Status:</b> ACTIVE (Monitored Dual-Chain)\n` +
-                           `<a href="https://scan.pulsechain.com/address/${targetAddress}">[ View Full PulseScan Audit ]</a>\n\n` +
+                           `<b>Last Footprint:</b> ${lastFootprint}\n\n` +
+                           `<a href="https://scan.pulsechain.com/address/${targetAddress}">[ PulseScan ]</a> • <a href="https://etherscan.io/address/${targetAddress}">[ Etherscan ]</a>\n\n` +
                            `<code>[ End of Intercept ]</code>`;
 
         bot.sendMessage(chatId, dossierMsg, { parse_mode: 'HTML', disable_web_page_preview: true });
@@ -337,12 +403,14 @@ async function checkPulseChain(address) {
 
 async function checkEthereum(address) {
     if (!process.env.ETHERSCAN_API_KEY) return;
+    const apiKey = process.env.ETHERSCAN_API_KEY.trim();
     try {
-        const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&page=1&offset=1&sort=desc&apikey=${process.env.ETHERSCAN_API_KEY}`;
+        // Use Etherscan V2 API for Mainnet (chainid=1)
+        const url = `https://api.etherscan.io/v2/api?chainid=1&module=account&action=txlist&address=${address}&page=1&offset=1&sort=desc&apikey=${apiKey}`;
         const response = await fetch(url);
         const json = await response.json();
         
-        if (json.status !== "1" || !json.result || json.result.length === 0) return;
+        if (json.status !== "1" || !Array.isArray(json.result) || json.result.length === 0) return;
 
         const latestTx = json.result[0];
 
@@ -406,7 +474,7 @@ async function runSurveillanceCycle() {
     for (const address of TARGET_ADDRESSES) {
         await checkPulseChain(address);
         await checkEthereum(address);
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 350));
     }
 }
 

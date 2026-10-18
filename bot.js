@@ -1,4 +1,3 @@
-// Safe dotenv check: loads locally if present, ignores silently on Railway
 try { require('dotenv').config(); } catch (e) {}
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -11,7 +10,6 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
 // --- 1. INTELLIGENCE ADDRESS BOOK ---
-// All addresses must be lowercase for accurate matching
 const ADDRESS_BOOK = {
     '0xb8698cfffdaaf26ca21fe8aa560c18cc2b2f5996': 'pDONG WALLET',
     '0xdca9327a57b62afe68a7145c106c1bb6dba7ba21': 'pDONG 2 WALLET',
@@ -43,13 +41,11 @@ const ADDRESS_BOOK = {
 
 const TARGET_ADDRESSES = Object.keys(ADDRESS_BOOK);
 
-// Store the latest seen transaction hash for each address on each chain
 let memoryState = {
     pulsechain: {},
     ethereum: {}
 };
 
-// Helper: Convert address to known name
 function resolveAddressName(addressStr) {
     if (!addressStr) return "UNKNOWN CONTRACT";
     const lower = addressStr.toLowerCase();
@@ -57,12 +53,10 @@ function resolveAddressName(addressStr) {
     return "UNIDENTIFIED WALLET";
 }
 
-let lastSpokenTime = 0;
-
 console.log(`[${new Date().toISOString()}] TEH OPERATOR // SYSTEM BOOTING...`);
 console.log(`[SYS] Loaded ${TARGET_ADDRESSES.length} target wallets into surveillance mesh.`);
 
-// --- 2. REGISTER COMMAND MENU ---
+// --- 2. COMMAND MENU ---
 bot.setMyCommands([
     { command: '/scan', description: 'Force real-time OSINT scan for breaking developments' },
     { command: '/website', description: 'Access teh official encrypted archive & dossier' },
@@ -70,7 +64,7 @@ bot.setMyCommands([
     { command: '/help', description: 'Display available surveillance directives' }
 ]).catch(() => {});
 
-// --- 3. WELCOME PROTOCOL (Auto-Delete after 30s) ---
+// --- 3. WELCOME PROTOCOL (Auto-Delete 30s) ---
 bot.on('new_chat_members', (msg) => {
     const newMembers = msg.new_chat_members;
     newMembers.forEach((member) => {
@@ -85,7 +79,7 @@ bot.on('new_chat_members', (msg) => {
         ).then((sentMsg) => {
             setTimeout(() => {
                 bot.deleteMessage(msg.chat.id, sentMsg.message_id).catch(() => {});
-            }, 30000); // 30 seconds
+            }, 30000); 
         }).catch(() => {});
     });
 });
@@ -147,29 +141,7 @@ bot.onText(/\/scan/, async (msg) => {
     }
 });
 
-// --- 5. PASSIVE TRIGGERS ---
-const TRIGGERS = [
-    { words: ['sec', 'court', 'lawsuit'], reply: "The Eastern District of New York closed its file in 2025. Code remains indifferent to territorial lines." },
-    { words: ['oa', 'origin address', 'whale'], reply: "You speak of the Origin Address. A ledger records movements, but never custody." },
-    { words: ['5555', 'stake', 'time'], reply: "Fifteen years locked in immutable bytecode. Did you stake the token, or did the token stake you?" }
-];
-
-bot.on('message', (msg) => {
-    if (!msg.text || msg.text.startsWith('/')) return;
-    const text = msg.text.toLowerCase();
-    const now = Date.now();
-    if (now - lastSpokenTime < 15 * 60 * 1000) return; // 15 min cooldown
-
-    for (const item of TRIGGERS) {
-        if (item.words.some(w => text.includes(w))) {
-            lastSpokenTime = now;
-            setTimeout(() => { bot.sendMessage(msg.chat.id, `<code>[ INTERCEPT ]</code>\n\n<i>"${item.reply}"</i>`, { parse_mode: 'HTML', reply_to_message_id: msg.message_id }); }, 3000);
-            break;
-        }
-    }
-});
-
-// --- 6. MULTI-CHAIN SURVEILLANCE ENGINE ---
+// --- 5. MULTI-CHAIN SURVEILLANCE ENGINE ---
 async function checkPulseChain(address) {
     try {
         const endpoints = [
@@ -214,29 +186,20 @@ async function checkPulseChain(address) {
 
             let method = latestTx.method || "Transfer";
             
-            // Build Dynamic Action Sentence
             let actionSummary = "";
             if (isOutgoing) {
-                if (nativeValue > 0) {
-                    actionSummary = `🔴 <b>Sent</b> ${valueStr} PLS <b>to</b> ${counterpartyName}`;
-                } else if (method.toLowerCase().includes('swap') || method.toLowerCase().includes('execute')) {
-                    actionSummary = `🔄 <b>Swapped tokens via</b> ${counterpartyName}`;
-                } else {
-                    actionSummary = `⚙️ <b>Executed ${method} on</b> ${counterpartyName}`;
-                }
+                if (nativeValue > 0) actionSummary = `🔴 <b>Sent</b> ${valueStr} PLS <b>to</b> ${counterpartyName}`;
+                else if (method.toLowerCase().includes('swap') || method.toLowerCase().includes('execute')) actionSummary = `🔄 <b>Swapped tokens via</b> ${counterpartyName}`;
+                else actionSummary = `⚙️ <b>Executed ${method} on</b> ${counterpartyName}`;
             } else {
-                if (nativeValue > 0) {
-                    actionSummary = `🟢 <b>Received</b> ${valueStr} PLS <b>from</b> ${counterpartyName}`;
-                } else {
-                    actionSummary = `📥 <b>Targeted by ${method} from</b> ${counterpartyName}`;
-                }
+                if (nativeValue > 0) actionSummary = `🟢 <b>Received</b> ${valueStr} PLS <b>from</b> ${counterpartyName}`;
+                else actionSummary = `📥 <b>Targeted by ${method} from</b> ${counterpartyName}`;
             }
 
-            // Extract exact token transfers if available
             let tokenDetail = "";
             if (latestTx.token_transfers && latestTx.token_transfers.length > 0) {
                 tokenDetail = `\n<b>Tokens Moved:</b>\n`;
-                const transfers = latestTx.token_transfers.slice(0, 4); // Show up to 4 token transfers
+                const transfers = latestTx.token_transfers.slice(0, 4);
                 transfers.forEach(tt => {
                     if (tt.token && tt.total) {
                         const dec = parseInt(tt.token.decimals || "18");
@@ -303,22 +266,14 @@ async function checkEthereum(address) {
             let method = latestTx.functionName ? latestTx.functionName.split('(')[0] : "Transfer";
             if (!method) method = "Transfer";
 
-            // Build Dynamic Action Sentence
             let actionSummary = "";
             if (isOutgoing) {
-                if (nativeValue > 0) {
-                    actionSummary = `🔴 <b>Sent</b> ${valueStr} ETH <b>to</b> ${counterpartyName}`;
-                } else if (method.toLowerCase().includes('swap') || method.toLowerCase().includes('execute')) {
-                    actionSummary = `🔄 <b>Swapped tokens via</b> ${counterpartyName}`;
-                } else {
-                    actionSummary = `⚙️ <b>Executed ${method} on</b> ${counterpartyName}`;
-                }
+                if (nativeValue > 0) actionSummary = `🔴 <b>Sent</b> ${valueStr} ETH <b>to</b> ${counterpartyName}`;
+                else if (method.toLowerCase().includes('swap') || method.toLowerCase().includes('execute')) actionSummary = `🔄 <b>Swapped tokens via</b> ${counterpartyName}`;
+                else actionSummary = `⚙️ <b>Executed ${method} on</b> ${counterpartyName}`;
             } else {
-                if (nativeValue > 0) {
-                    actionSummary = `🟢 <b>Received</b> ${valueStr} ETH <b>from</b> ${counterpartyName}`;
-                } else {
-                    actionSummary = `📥 <b>Targeted by ${method} from</b> ${counterpartyName}`;
-                }
+                if (nativeValue > 0) actionSummary = `🟢 <b>Received</b> ${valueStr} ETH <b>from</b> ${counterpartyName}`;
+                else actionSummary = `📥 <b>Targeted by ${method} from</b> ${counterpartyName}`;
             }
 
             const msg = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
@@ -344,13 +299,9 @@ async function runSurveillanceCycle() {
     for (const address of TARGET_ADDRESSES) {
         await checkPulseChain(address);
         await checkEthereum(address);
-        
-        // 300ms pause between wallets to respect Free-Tier 5 req/sec limit on Ethereum
         await new Promise(resolve => setTimeout(resolve, 300));
     }
 }
 
-// Sweep all wallets every 90 seconds
 setInterval(runSurveillanceCycle, 90000);
 setTimeout(runSurveillanceCycle, 5000);
-```eof

@@ -15,7 +15,6 @@ const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 // --- 1. INTELLIGENCE ADDRESS BOOK ---
 const ADDRESS_BOOK = {
     '0xb8698cfffdaaf26ca21fe8aa560c18cc2b2f5996': 'pDONG WALLET',
-    '0xdca9327a57b62afe68a7145c106c1bb6dba7ba21': 'pDONG 2 WALLET',
     '0xaf10cc6c50defff901b535691550d7af208939c5': 'GOD WHALE 1',
     '0x2bde3b9c0129be4689e245ba689b9b0ae4ac666d': 'GOD WHALE 2',
     '0xf1bd8e36a0e48650bdb28056277b05e851ebbae8': 'GOD WHALE 3',

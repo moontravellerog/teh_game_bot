@@ -12,33 +12,53 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
-// --- 1. INTELLIGENCE ADDRESS BOOK ---
+// --- 1. TARGET SURVEILLANCE LIST (Wallets to Watch) ---
 const ADDRESS_BOOK = {
-    '0xb8698cfffdaaf26ca21fe8aa560c18cc2b2f5996': 'pDONG WALLET',
-    '0xaf10cc6c50defff901b535691550d7af208939c5': 'GOD WHALE 1',
-    '0x2bde3b9c0129be4689e245ba689b9b0ae4ac666d': 'GOD WHALE 2',
-    '0xf1bd8e36a0e48650bdb28056277b05e851ebbae8': 'GOD WHALE 3',
-    '0x828fd91d3e3a9ffa6305e78b9ae2cfbc5b5d9f6b': 'GOD WHALE 4',
-    '0x1706d193862da7f8c746aae63d514df93dfa5dbf': 'GOD WHALE 5',
-    '0xddf744374b46aa980ddce4a5aa216478bf925cd1': 'GOD WHALE 6',
-    '0x2fd56159f4c8664a1de5c75e430338cfa58cd5b9': 'GOD WHALE 7',
-    '0x807dc01d44407d3efa0171f6de39076a27f20338': 'GOD WHALE 8',
-    '0x3930f94249a66535bc0f177bc567152320dd7e6c': 'GOD WHALE 9',
-    '0x41b20fbb9e38abeaef31fa45a9b760d251180a5b': 'GOD WHALE 10',
-    '0xf5d7b1b20288b9052e9cbdbf877a19077edb34d8': 'GOD WHALE 11',
-    '0xab3c13e0ea435aa388ea4e7bfa7baecc283c92ee': 'HEX WHALE 1',
-    '0x1e57ce7e4bcc06f4cfdb7572acb6335ba670920e': 'HEX WHALE 2',
-    '0xe059d3e762b11764597225e4c08c7606a16caccc': 'HEX WHALE 3',
-    '0x5f2c9a4d47cab74bfc35d5d9cb391687049d8503': 'RACKHAM 1',
-    '0x55f983db44b494218ad8288ce02636674c5f9be5': 'RACKHAM 2',
-    '0x075e72a5edf65f0a5f44699c7654c1a76941ddc8': 'OA 1',
-    '0xa2e1734682c6a237c070d93019a7e0bf7047406c': 'OA 2',
-    '0x25b313158ce11080524dca0fd01141eed5f94b81': 'OA 3',
-    '0x2d2c2ff3345de305ea06c35c958b0a4fd774abda': 'OA 4',
-    '0x9a6a414d6f3497c05e3b1de90520765fa1e07c03': 'OA 5 (HEX OA)',
-    '0x4bdbb75f1995f966dbf79e7433424a94845dba00': 'OA 6',
-    '0xbb5cbbf47f1a1741195c128c4d00457a4501c177': 'OA 7',
-    '0x65a8875862263219d5f230f69385397a88247355': 'OA 8'
+    '0xb8698cfffdaaf26ca21fe8aa560c18cc2b2f5996': '5996 ROOT (operates Maker) [T1]',
+    '0xaf10cc6c50defff901b535691550d7af208939c5': 'GOD WHALE 1 [T1]',
+    '0x2bde3b9c0129be4689e245ba689b9b0ae4ac666d': 'GOD WHALE 2 [T1]',
+    '0xf1bd8e36a0e48650bdb28056277b05e851ebbae8': 'GOD WHALE 3 [T1]',
+    '0x828fd91d3e3a9ffa6305e78b9ae2cfbc5b5d9f6b': 'GOD WHALE 4 [T1]',
+    '0x1706d193862da7f8c746aae63d514df93dfa5dbf': 'GOD WHALE 5 [T1]',
+    '0xddf744374b46aa980ddce4a5aa216478bf925cd1': 'GOD WHALE 6 [T1]',
+    '0x2fd56159f4c8664a1de5c75e430338cfa58cd5b9': 'GOD WHALE 7 [T1]',
+    '0x807dc01d44407d3efa0171f6de39076a27f20338': 'GOD WHALE 8 [T1]',
+    '0x3930f94249a66535bc0f177bc567152320dd7e6c': 'GOD WHALE 9 [T1]',
+    '0x41b20fbb9e38abeaef31fa45a9b760d251180a5b': 'GOD WHALE 10 [T1]',
+    '0xf5d7b1b20288b9052e9cbdbf877a19077edb34d8': 'GOD WHALE 11 [T1]',
+    '0xab3c13e0ea435aa388ea4e7bfa7baecc283c92ee': 'HEX WHALE 1 [T1]',
+    '0x1e57ce7e4bcc06f4cfdb7572acb6335ba670920e': 'HEX WHALE 2 [T1]',
+    '0xe059d3e762b11764597225e4c08c7606a16caccc': 'HEX WHALE 3 [T1]',
+    '0x5f2c9a4d47cab74bfc35d5d9cb391687049d8503': 'RACKHAM 1 [T1]',
+    '0x55f983db44b494218ad8288ce02636674c5f9be5': 'RACKHAM 2 [T1]',
+    '0x075e72a5edf65f0a5f44699c7654c1a76941ddc8': 'OA 1 [T1]',
+    '0xa2e1734682c6a237c070d93019a7e0bf7047406c': 'OA 2 [T1]',
+    '0x25b313158ce11080524dca0fd01141eed5f94b81': 'OA 3 [T1]',
+    '0x2d2c2ff3345de305ea06c35c958b0a4fd774abda': 'OA 4 [T1]',
+    '0x9a6a414d6f3497c05e3b1de90520765fa1e07c03': 'OA 5 (HEX OA) [T1]',
+    '0x4bdbb75f1995f966dbf79e7433424a94845dba00': 'OA 6 [T1]',
+    '0xbb5cbbf47f1a1741195c128c4d00457a4501c177': 'OA 7 [T1]',
+    '0x65a8875862263219d5f230f69385397a88247355': 'OA 8 [T1]'
+};
+
+// Built-in Ecosystem Contract Directory (Fallback if explorer doesn't label a router)
+const KNOWN_CONTRACTS = {
+    '0x98bf93ebf5c380c0e6ae8e192a7e2ae08edacc02': 'PulseX Router V1',
+    '0x165c3410fc91ef562c50559f7d2289febed552d9': 'PulseX Router V2',
+    '0xda9aba4eecf53b1c7b9b2672d6c2b0d2c9d53e04': 'PulseXSwapRouter',
+    '0xa1077a294dde1b09bb078844df40758a5d0f9a27': 'WPLS',
+    '0x95b303987a60c71504d99aa1b13b4da07b0790ab': 'PLSX',
+    '0x2b591e99afe9f32eaa6214f7b7629768c40eeb39': 'HEX',
+    '0x2fa878ab3f87cc1c9737fc071108f904c0b0c95d': 'INC',
+    '0x6b175474e89094c44da98b954eedeac495271d0f': 'DAI / pDAI',
+    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 'USDC',
+    '0xdac17f958d2ee523a2206206994597c13d831ec7': 'USDT',
+    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': 'WETH',
+    '0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2': 'Maker (MKR)',
+    '0x35d1b3f3d7966a1dfe207aa4514c12a259a0492b': 'Maker: Vat (Core)',
+    '0x19c0976f590d67707e62397c87829d896dc0f1f1': 'Maker: Pot (DSR)',
+    '0x1715a3e4a142d8b698131108995174f37aeba10d': 'PulseChain Bridge',
+    '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'OmniBridge'
 };
 
 const TARGET_ADDRESSES = Object.keys(ADDRESS_BOOK);
@@ -48,11 +68,43 @@ let memoryState = {
     ethereum: {}
 };
 
-function resolveAddressName(addressStr) {
-    if (!addressStr) return "UNKNOWN CONTRACT";
+// Automatically resolves: 1. Watched Wallet Name -> 2. Built-in Contract -> 3. On-Chain Contract Name -> 4. Short Address
+function formatEntityForFlow(entityInput) {
+    if (!entityInput) return "unknown";
+    
+    const addressStr = typeof entityInput === 'string' ? entityInput : entityInput.hash;
+    if (!addressStr) return "unknown";
+    
     const lower = addressStr.toLowerCase();
-    if (ADDRESS_BOOK[lower]) return ADDRESS_BOOK[lower];
-    return "UNIDENTIFIED WALLET";
+
+    // 1. Check if it's one of our watched targets
+    if (ADDRESS_BOOK[lower]) {
+        return ADDRESS_BOOK[lower].replace(/\s*\[T\d+\]$/i, '');
+    }
+
+    // 2. Check built-in core ecosystem contracts
+    if (KNOWN_CONTRACTS[lower]) {
+        return `${KNOWN_CONTRACTS[lower]} (${lower.substring(0, 8)}..)`;
+    }
+
+    // 3. Extract live on-chain name directly from PulseScan / Blockscout payload!
+    if (typeof entityInput === 'object') {
+        if (entityInput.token && entityInput.token.symbol) {
+            return `${entityInput.token.symbol} Token (${lower.substring(0, 8)}..)`;
+        }
+        if (entityInput.name) {
+            return `${entityInput.name} (${lower.substring(0, 8)}..)`;
+        }
+        if (entityInput.ens_domain_name) {
+            return entityInput.ens_domain_name;
+        }
+        if (entityInput.is_contract) {
+            return `Contract (${lower.substring(0, 10)}..)`;
+        }
+    }
+
+    // 4. Default to Netwatch-style short address for unknown EOAs
+    return `${lower.substring(0, 10)}..`;
 }
 
 function formatTimeAgo(dateInput) {
@@ -73,7 +125,6 @@ async function fetchEthBalance(address) {
     const apiKey = process.env.ETHERSCAN_API_KEY ? process.env.ETHERSCAN_API_KEY.trim() : '';
     
     if (apiKey) {
-        // 1. Try Etherscan V2 API
         try {
             const v2Url = `https://api.etherscan.io/v2/api?chainid=1&module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
             const res = await fetch(v2Url);
@@ -83,7 +134,6 @@ async function fetchEthBalance(address) {
             }
         } catch (e) {}
 
-        // 2. Try Etherscan V1 API fallback
         try {
             const v1Url = `https://api.etherscan.io/api?module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
             const res = await fetch(v1Url);
@@ -94,7 +144,6 @@ async function fetchEthBalance(address) {
         } catch (e) {}
     }
 
-    // 3. Fallback to direct Ethereum RPC if Etherscan rate-limits (5 req/sec)
     const rpcUrls = ['https://eth.llamarpc.com', 'https://ethereum-rpc.publicnode.com', 'https://rpc.ankr.com/eth'];
     for (const rpc of rpcUrls) {
         try {
@@ -182,7 +231,7 @@ bot.onText(/\/wallets/, (msg) => {
     let listMsg = `📁 <b>SURVEILLANCE ENTITY DIRECTORY</b>\n\n`;
     
     let categories = {
-        "pDONG Hubs": ['pDONG WALLET', 'pDONG 2 WALLET'],
+        "Root / Maker": ['5996 ROOT (operates Maker) [T1]'],
         "God Whales": Object.values(ADDRESS_BOOK).filter(name => name.startsWith('GOD WHALE')),
         "HEX Whales": Object.values(ADDRESS_BOOK).filter(name => name.startsWith('HEX WHALE')),
         "Rackham": Object.values(ADDRESS_BOOK).filter(name => name.startsWith('RACKHAM')),
@@ -207,7 +256,7 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
     const query = match[1] ? match[1].trim().toLowerCase() : '';
 
     if (!query) {
-        return bot.sendMessage(chatId, `⚠️ <i>Usage error. Specify a target designation (e.g., /dossier GOD WHALE 1 or /dossier pDONG WALLET).</i>`, { parse_mode: 'HTML' });
+        return bot.sendMessage(chatId, `⚠️ <i>Usage error. Specify a target designation (e.g., /dossier GOD WHALE 1 or /dossier 5996).</i>`, { parse_mode: 'HTML' });
     }
 
     let targetAddress = null;
@@ -228,7 +277,6 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
     bot.sendMessage(chatId, `<code>[ QUERYING LEDGER FOR ${targetName}... ]</code>`, { parse_mode: 'HTML' });
 
     try {
-        // 1. Fetch PulseChain balance & last tx
         let plsBalance = "0.00";
         let lastFootprint = "No recent on-chain activity";
         try {
@@ -244,12 +292,12 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
                 const latest = txJson.items[0];
                 const isOut = latest.from?.hash?.toLowerCase() === targetAddress.toLowerCase();
                 const dir = isOut ? "Outbound" : "Inbound";
-                const method = latest.method || "Transfer";
-                lastFootprint = `${formatTimeAgo(latest.timestamp)} (${dir} ${method} on PulseChain)`;
+                const method = latest.method || "transfer";
+                const otherParty = isOut ? formatEntityForFlow(latest.to) : formatEntityForFlow(latest.from);
+                lastFootprint = `${formatTimeAgo(latest.timestamp)} (${dir} ${method} → ${otherParty})`;
             }
         } catch (e) {}
 
-        // 2. Fetch Ethereum balance via Etherscan V2 / RPC
         const ethBalance = await fetchEthBalance(targetAddress);
 
         const dossierMsg = `📁 <b>TARGET DOSSIER GENERATED</b>\n\n` +
@@ -259,7 +307,7 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
                            `🔵 <b>Ethereum Reserves:</b> ${ethBalance} ETH\n\n` +
                            `<b>Operational Status:</b> ACTIVE (Monitored Dual-Chain)\n` +
                            `<b>Last Footprint:</b> ${lastFootprint}\n\n` +
-                           `<a href="https://scan.pulsechain.com/address/${targetAddress}">[ PulseScan ]</a> • <a href="https://etherscan.io/address/${targetAddress}">[ Etherscan ]</a>\n\n` +
+                           `<a href="https://otter.pulsechain.com/address/${targetAddress}">[ OtterScan ]</a> • <a href="https://etherscan.io/address/${targetAddress}">[ Etherscan ]</a>\n\n` +
                            `<code>[ End of Intercept ]</code>`;
 
         bot.sendMessage(chatId, dossierMsg, { parse_mode: 'HTML', disable_web_page_preview: true });
@@ -313,7 +361,7 @@ bot.onText(/\/scan/, async (msg) => {
     }
 });
 
-// --- 5. MULTI-CHAIN SURVEILLANCE ENGINE ---
+// --- 5. MULTI-CHAIN SURVEILLANCE ENGINE (Netwatch Compact Format + Auto-Contract Naming) ---
 async function checkPulseChain(address) {
     try {
         const endpoints = [
@@ -344,54 +392,33 @@ async function checkPulseChain(address) {
             memoryState.pulsechain[address] = latestTx.hash;
 
             const isOutgoing = latestTx.from && latestTx.from.hash && latestTx.from.hash.toLowerCase() === address.toLowerCase();
-            const targetName = resolveAddressName(address);
-            
-            const counterpartyAddr = isOutgoing ? latestTx.to?.hash : latestTx.from?.hash;
-            const counterpartyName = resolveAddressName(counterpartyAddr);
-            const counterpartyFull = counterpartyAddr ? counterpartyAddr : "0x0000000000000000000000000000000000000000";
+            const statusEmoji = isOutgoing ? '🔴' : '🟢';
+            const targetHeader = ADDRESS_BOOK[address.toLowerCase()] || address;
+
+            const fnName = latestTx.method ? latestTx.method : "transfer";
             
             const nativeValue = latestTx.value ? parseFloat(latestTx.value) / 1e18 : 0;
-            const valueStr = nativeValue.toLocaleString(undefined, {maximumFractionDigits: 4});
-            
-            let feeStr = "Unknown";
-            if (latestTx.fee && latestTx.fee.value) feeStr = (parseFloat(latestTx.fee.value) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
+            let valDisplay = `${nativeValue.toLocaleString(undefined, {maximumFractionDigits: 4})} PLS`;
 
-            let method = latestTx.method || "Transfer";
-            
-            let actionSummary = "";
-            if (isOutgoing) {
-                if (nativeValue > 0) actionSummary = `🔴 <b>Sent</b> ${valueStr} PLS <b>to</b> ${counterpartyName}`;
-                else if (method.toLowerCase().includes('swap') || method.toLowerCase().includes('execute')) actionSummary = `🔄 <b>Swapped tokens via</b> ${counterpartyName}`;
-                else actionSummary = `⚙️ <b>Executed ${method} on</b> ${counterpartyName}`;
-            } else {
-                if (nativeValue > 0) actionSummary = `🟢 <b>Received</b> ${valueStr} PLS <b>from</b> ${counterpartyName}`;
-                else actionSummary = `📥 <b>Targeted by ${method} from</b> ${counterpartyName}`;
+            // If 0 PLS moved, check if ERC20 tokens moved so val: shows the token amount
+            if (nativeValue === 0 && latestTx.token_transfers && latestTx.token_transfers.length > 0) {
+                const tt = latestTx.token_transfers[0];
+                if (tt.token && tt.total) {
+                    const dec = parseInt(tt.token.decimals || "18");
+                    const sym = tt.token.symbol || "Tokens";
+                    const tokenVal = parseFloat(tt.total.value || "0") / Math.pow(10, dec);
+                    valDisplay = `${tokenVal.toLocaleString(undefined, {maximumFractionDigits: 2})} ${sym}`;
+                }
             }
 
-            let tokenDetail = "";
-            if (latestTx.token_transfers && latestTx.token_transfers.length > 0) {
-                tokenDetail = `\n<b>Tokens Moved:</b>\n`;
-                const transfers = latestTx.token_transfers.slice(0, 4);
-                transfers.forEach(tt => {
-                    if (tt.token && tt.total) {
-                        const dec = parseInt(tt.token.decimals || "18");
-                        const sym = tt.token.symbol || "Token";
-                        const val = parseFloat(tt.total.value || "0") / Math.pow(10, dec);
-                        tokenDetail += `• <code>${val.toLocaleString(undefined, {maximumFractionDigits: 2})} ${sym}</code>\n`;
-                    }
-                });
-            }
+            // Pass the full object (latestTx.from / latestTx.to) so it reads on-chain contract names!
+            const fromEntity = formatEntityForFlow(latestTx.from);
+            const toEntity = formatEntityForFlow(latestTx.to);
 
-            const msg = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
-                        `<b>Network:</b> PULSECHAIN 🟢\n` +
-                        `<b>Target:</b> ${targetName}\n` +
-                        `<code>${address}</code>\n\n` +
-                        `${actionSummary}\n` +
-                        `<code>${counterpartyFull}</code>\n` +
-                        `${tokenDetail}\n` +
-                        `<b>Network Fee:</b> ${feeStr} PLS\n` +
-                        `<b>Block Height:</b> ${latestTx.block}\n\n` +
-                        `<a href="https://scan.pulsechain.com/tx/${latestTx.hash}">[ View Forensic Trace on PulseScan ]</a>`;
+            const msg = `${statusEmoji} <b>${targetHeader}</b>\n` +
+                        `fn: ${fnName}  val: ${valDisplay}\n` +
+                        `from ${fromEntity} → to ${toEntity}\n` +
+                        `https://otter.pulsechain.com/tx/${latestTx.hash}`;
 
             if (process.env.TELEGRAM_CHAT_ID) {
                 bot.sendMessage(process.env.TELEGRAM_CHAT_ID, msg, { parse_mode: 'HTML', disable_web_page_preview: true }).catch(()=>{});
@@ -404,7 +431,6 @@ async function checkEthereum(address) {
     if (!process.env.ETHERSCAN_API_KEY) return;
     const apiKey = process.env.ETHERSCAN_API_KEY.trim();
     try {
-        // Use Etherscan V2 API for Mainnet (chainid=1)
         const url = `https://api.etherscan.io/v2/api?chainid=1&module=account&action=txlist&address=${address}&page=1&offset=1&sort=desc&apikey=${apiKey}`;
         const response = await fetch(url);
         const json = await response.json();
@@ -422,43 +448,22 @@ async function checkEthereum(address) {
             memoryState.ethereum[address] = latestTx.hash;
 
             const isOutgoing = latestTx.from.toLowerCase() === address.toLowerCase();
-            const targetName = resolveAddressName(address);
-            
-            const counterpartyAddr = isOutgoing ? latestTx.to : latestTx.from;
-            const counterpartyName = resolveAddressName(counterpartyAddr);
-            const counterpartyFull = counterpartyAddr ? counterpartyAddr : "0x0000000000000000000000000000000000000000";
-            
+            const statusEmoji = isOutgoing ? '🔴' : '🟢';
+            const targetHeader = ADDRESS_BOOK[address.toLowerCase()] || address;
+
+            let fnName = latestTx.functionName ? latestTx.functionName.split('(')[0] : "transfer";
+            if (!fnName) fnName = "transfer";
+
             const nativeValue = latestTx.value ? parseFloat(latestTx.value) / 1e18 : 0;
-            const valueStr = nativeValue.toLocaleString(undefined, {maximumFractionDigits: 4});
-            
-            let feeStr = "Unknown";
-            if (latestTx.gasUsed && latestTx.gasPrice) {
-                const feeWei = parseFloat(latestTx.gasUsed) * parseFloat(latestTx.gasPrice);
-                feeStr = (feeWei / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
-            }
+            const valDisplay = `${nativeValue.toLocaleString(undefined, {maximumFractionDigits: 4})} ETH`;
 
-            let method = latestTx.functionName ? latestTx.functionName.split('(')[0] : "Transfer";
-            if (!method) method = "Transfer";
+            const fromEntity = formatEntityForFlow(latestTx.from);
+            const toEntity = formatEntityForFlow(latestTx.to);
 
-            let actionSummary = "";
-            if (isOutgoing) {
-                if (nativeValue > 0) actionSummary = `🔴 <b>Sent</b> ${valueStr} ETH <b>to</b> ${counterpartyName}`;
-                else if (method.toLowerCase().includes('swap') || method.toLowerCase().includes('execute')) actionSummary = `🔄 <b>Swapped tokens via</b> ${counterpartyName}`;
-                else actionSummary = `⚙️ <b>Executed ${method} on</b> ${counterpartyName}`;
-            } else {
-                if (nativeValue > 0) actionSummary = `🟢 <b>Received</b> ${valueStr} ETH <b>from</b> ${counterpartyName}`;
-                else actionSummary = `📥 <b>Targeted by ${method} from</b> ${counterpartyName}`;
-            }
-
-            const msg = `🚨 <b>ON-CHAIN INTERCEPT</b> 🚨\n\n` +
-                        `<b>Network:</b> ETHEREUM 🔵\n` +
-                        `<b>Target:</b> ${targetName}\n` +
-                        `<code>${address}</code>\n\n` +
-                        `${actionSummary}\n` +
-                        `<code>${counterpartyFull}</code>\n\n` +
-                        `<b>Network Fee:</b> ${feeStr} ETH\n` +
-                        `<b>Block Height:</b> ${latestTx.blockNumber}\n\n` +
-                        `<a href="https://etherscan.io/tx/${latestTx.hash}">[ View Forensic Trace on Etherscan ]</a>`;
+            const msg = `${statusEmoji} <b>${targetHeader} [ETH]</b>\n` +
+                        `fn: ${fnName}  val: ${valDisplay}\n` +
+                        `from ${fromEntity} → to ${toEntity}\n` +
+                        `https://etherscan.io/tx/${latestTx.hash}`;
 
             if (process.env.TELEGRAM_CHAT_ID) {
                 bot.sendMessage(process.env.TELEGRAM_CHAT_ID, msg, { parse_mode: 'HTML', disable_web_page_preview: true }).catch(()=>{});

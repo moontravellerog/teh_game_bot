@@ -10,7 +10,14 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
     process.exit(1);
 }
 
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
+// Request chat_member updates explicitly in polling
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
+    polling: {
+        params: {
+            allowed_updates: ["message", "edited_message", "channel_post", "edited_channel_post", "chat_member", "my_chat_member"]
+        }
+    } 
+});
 
 // --- 1. TARGET SURVEILLANCE LIST (Wallets to Watch) ---
 const ADDRESS_BOOK = {
@@ -41,7 +48,7 @@ const ADDRESS_BOOK = {
     '0x65a8875862263219d5f230f69385397a88247355': 'OA 8 [T1]'
 };
 
-// Built-in Ecosystem Contract Directory (Fallback if explorer doesn't label a router)
+// Built-in Ecosystem Contract Directory
 const KNOWN_CONTRACTS = {
     '0x98bf93ebf5c380c0e6ae8e192a7e2ae08edacc02': 'PulseX Router V1',
     '0x165c3410fc91ef562c50559f7d2289febed552d9': 'PulseX Router V2',
@@ -68,26 +75,18 @@ let memoryState = {
     ethereum: {}
 };
 
-// Automatically resolves: 1. Watched Wallet Name -> 2. Built-in Contract -> 3. On-Chain Contract Name -> 4. Short Address
 function formatEntityForFlow(entityInput) {
     if (!entityInput) return "unknown";
-    
     const addressStr = typeof entityInput === 'string' ? entityInput : entityInput.hash;
     if (!addressStr) return "unknown";
-    
     const lower = addressStr.toLowerCase();
 
-    // 1. Check if it's one of our watched targets
     if (ADDRESS_BOOK[lower]) {
         return ADDRESS_BOOK[lower].replace(/\s*\[T\d+\]$/i, '');
     }
-
-    // 2. Check built-in core ecosystem contracts
     if (KNOWN_CONTRACTS[lower]) {
         return `${KNOWN_CONTRACTS[lower]} (${lower.substring(0, 8)}..)`;
     }
-
-    // 3. Extract live on-chain name directly from PulseScan / Blockscout payload!
     if (typeof entityInput === 'object') {
         if (entityInput.token && entityInput.token.symbol) {
             return `${entityInput.token.symbol} Token (${lower.substring(0, 8)}..)`;
@@ -95,15 +94,7 @@ function formatEntityForFlow(entityInput) {
         if (entityInput.name) {
             return `${entityInput.name} (${lower.substring(0, 8)}..)`;
         }
-        if (entityInput.ens_domain_name) {
-            return entityInput.ens_domain_name;
-        }
-        if (entityInput.is_contract) {
-            return `Contract (${lower.substring(0, 10)}..)`;
-        }
     }
-
-    // 4. Default to Netwatch-style short address for unknown EOAs
     return `${lower.substring(0, 10)}..`;
 }
 
@@ -120,10 +111,8 @@ function formatTimeAgo(dateInput) {
     return `${days}d ago`;
 }
 
-// Helper: Fetch ETH Balance using Etherscan V2 API -> V1 API -> Public RPC
 async function fetchEthBalance(address) {
     const apiKey = process.env.ETHERSCAN_API_KEY ? process.env.ETHERSCAN_API_KEY.trim() : '';
-    
     if (apiKey) {
         try {
             const v2Url = `https://api.etherscan.io/v2/api?chainid=1&module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
@@ -133,29 +122,14 @@ async function fetchEthBalance(address) {
                 return (parseFloat(json.result) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
             }
         } catch (e) {}
-
-        try {
-            const v1Url = `https://api.etherscan.io/api?module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
-            const res = await fetch(v1Url);
-            const json = await res.json();
-            if (json.status === "1" && json.result) {
-                return (parseFloat(json.result) / 1e18).toLocaleString(undefined, {maximumFractionDigits: 4});
-            }
-        } catch (e) {}
     }
-
     const rpcUrls = ['https://eth.llamarpc.com', 'https://ethereum-rpc.publicnode.com', 'https://rpc.ankr.com/eth'];
     for (const rpc of rpcUrls) {
         try {
             const rpcRes = await fetch(rpc, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    method: 'eth_getBalance',
-                    params: [address, 'latest'],
-                    id: 1
-                })
+                body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_getBalance', params: [address, 'latest'], id: 1 })
             });
             const rpcJson = await rpcRes.json();
             if (rpcJson && rpcJson.result) {
@@ -164,15 +138,12 @@ async function fetchEthBalance(address) {
             }
         } catch (e) {}
     }
-
     return "0.0000";
 }
 
-// Console Logs
 console.log(`[${new Date().toISOString()}] TEH OPERATOR // SYSTEM BOOTING...`);
 console.log(`[SYS] Loaded ${TARGET_ADDRESSES.length} target wallets into surveillance mesh.`);
 
-// Send System Online message to Telegram Chat on Startup
 if (process.env.TELEGRAM_CHAT_ID) {
     bot.sendMessage(process.env.TELEGRAM_CHAT_ID, 
         `<code>[ TEH OPERATOR // SYSTEM ONLINE ]</code>\n\n<i>Live OSINT wire synchronized. Monitoring global data streams...</i>`, 
@@ -180,7 +151,6 @@ if (process.env.TELEGRAM_CHAT_ID) {
     ).catch(() => {});
 }
 
-// --- 2. COMMAND MENU ---
 bot.setMyCommands([
     { command: '/scan', description: 'Force real-time OSINT scan for breaking developments' },
     { command: '/dossier', description: 'Query target ledger metadata (/dossier <name>)' },
@@ -189,27 +159,43 @@ bot.setMyCommands([
     { command: '/help', description: 'Display available surveillance directives' }
 ]).catch(() => {});
 
-// --- 3. WELCOME PROTOCOL (Auto-Delete 30s) ---
+// Helper function to send vanishing welcome greeting
+function sendVanishingWelcome(chatId, userName) {
+    bot.sendMessage(chatId, 
+        `👁 <b>SUBJECT IDENTIFIED</b>\n\n` +
+        `Welcome to TeH GAME, <b>${userName}</b>.\n\n` +
+        `Your Consumer Recreation Services profile has been activated. Every transaction leaves a trace. Every belief has a ledger.\n\n` +
+        `<code>Directive: Type /help or /website to inspect the archive.</code>`,
+        { parse_mode: 'HTML' }
+    ).then((sentMsg) => {
+        setTimeout(() => {
+            bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
+        }, 30000); 
+    }).catch(() => {});
+}
+
+// --- 3. WELCOME PROTOCOL (Dual-Listener: chat_member + new_chat_members) ---
+bot.on('chat_member', (update) => {
+    const oldStatus = update.old_chat_member?.status;
+    const newStatus = update.new_chat_member?.status;
+    const user = update.new_chat_member?.user;
+
+    if ((oldStatus === 'left' || oldStatus === 'kicked') && newStatus === 'member') {
+        if (user && !user.is_bot) {
+            sendVanishingWelcome(update.chat.id, user.first_name || "Subject");
+        }
+    }
+});
+
 bot.on('new_chat_members', (msg) => {
-    const newMembers = msg.new_chat_members;
+    const newMembers = msg.new_chat_members || [];
     newMembers.forEach((member) => {
-        if (member.is_bot) return;
-        const name = member.first_name || "Subject";
-        bot.sendMessage(msg.chat.id, 
-            `👁 <b>SUBJECT IDENTIFIED</b>\n\n` +
-            `Welcome to TeH GAME, <b>${name}</b>.\n\n` +
-            `Your Consumer Recreation Services profile has been activated. Every transaction leaves a trace. Every belief has a ledger.\n\n` +
-            `<code>Directive: Type /help or /website to inspect the archive.</code>`,
-            { parse_mode: 'HTML' }
-        ).then((sentMsg) => {
-            setTimeout(() => {
-                bot.deleteMessage(msg.chat.id, sentMsg.message_id).catch(() => {});
-            }, 30000); 
-        }).catch(() => {});
+        if (!member.is_bot) {
+            sendVanishingWelcome(msg.chat.id, member.first_name || "Subject");
+        }
     });
 });
 
-// --- 4. TELEGRAM COMMANDS ---
 bot.onText(/\/start/, (msg) => {
     bot.sendMessage(msg.chat.id, `<code>[ SYSTEM READY // DIRECTIVES ACTIVE ]</code>\n\nUse /scan for live wire, /dossier <name> to check a target, or /wallets for the directory.`, { parse_mode: 'HTML' });
 });
@@ -226,10 +212,8 @@ bot.onText(/\/help/, (msg) => {
         { parse_mode: 'HTML' });
 });
 
-// --- WALLET DIRECTORY COMMAND (/wallets) ---
 bot.onText(/\/wallets/, (msg) => {
     let listMsg = `📁 <b>SURVEILLANCE ENTITY DIRECTORY</b>\n\n`;
-    
     let categories = {
         "Root / Maker": ['5996 ROOT (operates Maker) [T1]'],
         "God Whales": Object.values(ADDRESS_BOOK).filter(name => name.startsWith('GOD WHALE')),
@@ -245,18 +229,16 @@ bot.onText(/\/wallets/, (msg) => {
             listMsg += `\n`;
         }
     }
-
     listMsg += `<i>Use /dossier &lt;Name&gt; to pull real-time balances.</i>`;
     bot.sendMessage(msg.chat.id, listMsg, { parse_mode: 'HTML' });
 });
 
-// --- DOSSIER QUERY COMMAND (/dossier) ---
 bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const query = match[1] ? match[1].trim().toLowerCase() : '';
 
     if (!query) {
-        return bot.sendMessage(chatId, `⚠️ <i>Usage error. Specify a target designation (e.g., /dossier GOD WHALE 1 or /dossier 5996).</i>`, { parse_mode: 'HTML' });
+        return bot.sendMessage(chatId, `⚠️ <i>Usage error. Specify a target designation (e.g., /dossier 5996).</i>`, { parse_mode: 'HTML' });
     }
 
     let targetAddress = null;
@@ -311,7 +293,6 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
                            `<code>[ End of Intercept ]</code>`;
 
         bot.sendMessage(chatId, dossierMsg, { parse_mode: 'HTML', disable_web_page_preview: true });
-
     } catch (err) {
         bot.sendMessage(chatId, `⚠️ <i>Ledger query severed. Target telemetry unavailable.</i>`, { parse_mode: 'HTML' });
     }
@@ -353,15 +334,13 @@ bot.onText(/\/scan/, async (msg) => {
         items.slice(0, 3).forEach(art => { 
             message += `• <a href="${art.link}"><b>${art.title}</b></a>\n  <i>${art.pubDate ? art.pubDate.substring(0,16) : 'Recent'}</i>\n\n`; 
         });
-        
         bot.sendMessage(msg.chat.id, message, { parse_mode: 'HTML', disable_web_page_preview: true });
     } catch (e) {
-        console.error("Scan Error:", e);
         bot.sendMessage(msg.chat.id, `⚠️ <i>Wire scan failed.</i>`, { parse_mode: 'HTML' });
     }
 });
 
-// --- 5. MULTI-CHAIN SURVEILLANCE ENGINE (Netwatch Compact Format + Auto-Contract Naming) ---
+// --- 5. MULTI-CHAIN SURVEILLANCE ENGINE ---
 async function checkPulseChain(address) {
     try {
         const endpoints = [
@@ -400,7 +379,6 @@ async function checkPulseChain(address) {
             const nativeValue = latestTx.value ? parseFloat(latestTx.value) / 1e18 : 0;
             let valDisplay = `${nativeValue.toLocaleString(undefined, {maximumFractionDigits: 4})} PLS`;
 
-            // If 0 PLS moved, check if ERC20 tokens moved so val: shows the token amount
             if (nativeValue === 0 && latestTx.token_transfers && latestTx.token_transfers.length > 0) {
                 const tt = latestTx.token_transfers[0];
                 if (tt.token && tt.total) {
@@ -411,7 +389,6 @@ async function checkPulseChain(address) {
                 }
             }
 
-            // Pass the full object (latestTx.from / latestTx.to) so it reads on-chain contract names!
             const fromEntity = formatEntityForFlow(latestTx.from);
             const toEntity = formatEntityForFlow(latestTx.to);
 

@@ -10,14 +10,7 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
     process.exit(1);
 }
 
-// Request chat_member updates explicitly in polling
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
-    polling: {
-        params: {
-            allowed_updates: ["message", "edited_message", "channel_post", "edited_channel_post", "chat_member", "my_chat_member"]
-        }
-    } 
-});
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
 // --- 1. TARGET SURVEILLANCE LIST (Wallets to Watch) ---
 const ADDRESS_BOOK = {
@@ -321,11 +314,23 @@ bot.onText(/\/price/, async (msg) => {
     }
 });
 
+// --- UPDATED SCAN COMMAND (Bypassing Google News bot-blocks) ---
 bot.onText(/\/scan/, async (msg) => {
     bot.sendMessage(msg.chat.id, `<code>[ 📡 SCANNING LIVE WEB... ]</code>`, { parse_mode: 'HTML' });
     try {
         const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent('Richard Heart OR PulseChain OR HEX crypto')}&hl=en-US&gl=US&ceid=US:en`;
-        const feed = await parser.parseURL(rssUrl);
+        
+        // Fetch raw XML manually using a disguised User-Agent to prevent Google 403 Blocks
+        const response = await fetch(rssUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+
+        if (!response.ok) throw new Error("HTTP Fetch failed");
+
+        const xmlData = await response.text();
+        const feed = await parser.parseString(xmlData);
         const items = feed.items || [];
         
         if (items.length === 0) return bot.sendMessage(msg.chat.id, `<i>No recent dispatches returned.</i>`, { parse_mode: 'HTML' });
@@ -336,6 +341,7 @@ bot.onText(/\/scan/, async (msg) => {
         });
         bot.sendMessage(msg.chat.id, message, { parse_mode: 'HTML', disable_web_page_preview: true });
     } catch (e) {
+        console.error("Scan Error:", e);
         bot.sendMessage(msg.chat.id, `⚠️ <i>Wire scan failed.</i>`, { parse_mode: 'HTML' });
     }
 });

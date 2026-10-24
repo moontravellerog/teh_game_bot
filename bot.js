@@ -10,7 +10,14 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
     process.exit(1);
 }
 
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
+// Request chat_member updates explicitly in polling
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
+    polling: {
+        params: {
+            allowed_updates: ["message", "edited_message", "chat_member"]
+        }
+    } 
+});
 
 // --- 1. TARGET SURVEILLANCE LIST (Wallets to Watch) ---
 const ADDRESS_BOOK = {
@@ -167,7 +174,7 @@ function sendVanishingWelcome(chatId, userName) {
     }).catch(() => {});
 }
 
-// --- 3. WELCOME PROTOCOL (Dual-Listener: chat_member + new_chat_members) ---
+// --- 3. WELCOME PROTOCOL ---
 bot.on('chat_member', (update) => {
     const oldStatus = update.old_chat_member?.status;
     const newStatus = update.new_chat_member?.status;
@@ -189,23 +196,25 @@ bot.on('new_chat_members', (msg) => {
     });
 });
 
-bot.onText(/\/start/, (msg) => {
+// --- 4. TELEGRAM COMMANDS (Using strict ^ regex to prevent URL overlaps) ---
+
+bot.onText(/^\/start/, (msg) => {
     bot.sendMessage(msg.chat.id, `<code>[ SYSTEM READY // DIRECTIVES ACTIVE ]</code>\n\nUse /scan for live wire, /dossier <name> to check a target, or /wallets for the directory.`, { parse_mode: 'HTML' });
 });
 
-bot.onText(/\/website/, (msg) => {
+bot.onText(/^\/website/, (msg) => {
     bot.sendMessage(msg.chat.id, 
         `🌐 <b>CENTRAL INVESTIGATION ARCHIVE</b>\n\n🔗 <a href="https://tehgame.xyz">https://tehgame.xyz</a>\n\n<i>"What if teh game has already started, and you just haven't noticed?"</i>`, 
         { parse_mode: 'HTML', disable_web_page_preview: false });
 });
 
-bot.onText(/\/help/, (msg) => {
+bot.onText(/^\/help/, (msg) => {
     bot.sendMessage(msg.chat.id, 
         `<code>[ AVAILABLE PROTOCOLS ]</code>\n\n• <b>/website</b> - Primary dossier\n• <b>/scan</b> - Global intelligence news scan\n• <b>/dossier &lt;name&gt;</b> - Inspect specific target wallet\n• <b>/wallets</b> - List all tracked surveillance targets\n• <b>/price</b> - PulseChain DEX telemetry`, 
         { parse_mode: 'HTML' });
 });
 
-bot.onText(/\/wallets/, (msg) => {
+bot.onText(/^\/wallets/, (msg) => {
     let listMsg = `📁 <b>SURVEILLANCE ENTITY DIRECTORY</b>\n\n`;
     let categories = {
         "Root / Maker": ['5996 ROOT (operates Maker) [T1]'],
@@ -226,7 +235,8 @@ bot.onText(/\/wallets/, (msg) => {
     bot.sendMessage(msg.chat.id, listMsg, { parse_mode: 'HTML' });
 });
 
-bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
+// Fix dossier so it properly captures the query even with the new anchor
+bot.onText(/^\/dossier(?:@\w+)?(?: (.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const query = match[1] ? match[1].trim().toLowerCase() : '';
 
@@ -291,7 +301,7 @@ bot.onText(/\/dossier(?: (.+))?/, async (msg, match) => {
     }
 });
 
-bot.onText(/\/price/, async (msg) => {
+bot.onText(/^\/price/, async (msg) => {
     try {
         const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/0xA1077a294dDE1B09bB078844df40758a5D0f9a27,0x95B303987A60C71504D99Aa1b13B4DA07b0790ab,0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39`);
         if (!res.ok) throw new Error("API offline");
@@ -314,20 +324,17 @@ bot.onText(/\/price/, async (msg) => {
     }
 });
 
-// --- UPDATED SCAN COMMAND (Bypassing Google News bot-blocks) ---
-bot.onText(/\/scan/, async (msg) => {
+bot.onText(/^\/scan/, async (msg) => {
     bot.sendMessage(msg.chat.id, `<code>[ 📡 SCANNING LIVE WEB... ]</code>`, { parse_mode: 'HTML' });
     try {
-        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent('Richard Heart OR PulseChain OR HEX crypto')}&hl=en-US&gl=US&ceid=US:en`;
+        const query = encodeURIComponent('"Richard Heart" OR PulseChain OR "HEX crypto"');
+        const rssUrl = `https://www.bing.com/news/search?q=${query}&format=rss`;
         
-        // Fetch raw XML manually using a disguised User-Agent to prevent Google 403 Blocks
         const response = await fetch(rssUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
         });
 
-        if (!response.ok) throw new Error("HTTP Fetch failed");
+        if (!response.ok) throw new Error(`HTTP Fetch failed`);
 
         const xmlData = await response.text();
         const feed = await parser.parseString(xmlData);
@@ -337,12 +344,14 @@ bot.onText(/\/scan/, async (msg) => {
         
         let message = `🛰 <b>INTELLIGENCE WIRE</b>\n\n`;
         items.slice(0, 3).forEach(art => { 
-            message += `• <a href="${art.link}"><b>${art.title}</b></a>\n  <i>${art.pubDate ? art.pubDate.substring(0,16) : 'Recent'}</i>\n\n`; 
+            const pubDate = art.pubDate ? new Date(art.pubDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent';
+            message += `• <a href="${art.link}"><b>${art.title}</b></a>\n  <i>${pubDate}</i>\n\n`; 
         });
+        
         bot.sendMessage(msg.chat.id, message, { parse_mode: 'HTML', disable_web_page_preview: true });
     } catch (e) {
-        console.error("Scan Error:", e);
-        bot.sendMessage(msg.chat.id, `⚠️ <i>Wire scan failed.</i>`, { parse_mode: 'HTML' });
+        console.error("Scan Error:", e.message);
+        bot.sendMessage(msg.chat.id, `⚠️ <i>Wire scan failed (Target actively blocking scrape).</i>`, { parse_mode: 'HTML' });
     }
 });
 
